@@ -59,17 +59,17 @@ export function CityInputMulti({
 
   return (
     <div className="relative">
-      <label htmlFor={id} className="block text-xs font-semibold text-gray-600 mb-1">{label}</label>
+      <label htmlFor={id} className="block text-xs font-mono font-semibold text-[--color-dim] mb-1">{label.toUpperCase()}</label>
       <div
-        className="min-h-[38px] w-full border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white focus-within:ring-2 focus-within:ring-emerald-500 flex flex-wrap gap-1.5 items-center cursor-text"
+        className="min-h-[38px] w-full border border-white/8 rounded px-2.5 py-1.5 bg-white/5 focus-within:ring-2 focus-within:ring-[--primary]/50 flex flex-wrap gap-1.5 items-center cursor-text"
         onClick={() => setOpen(true)}
       >
         {values.map((city) => (
-          <span key={city} className="flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold rounded-md px-2 py-0.5 shrink-0">
+          <span key={city} className="flex items-center gap-1 bg-[--primary]/10 text-[--primary] border border-[--primary]/20 text-xs font-semibold rounded px-2 py-0.5 shrink-0">
             <span className="font-mono">{cityToIata[city] ?? city}</span>
             <button
               type="button"
-              className="text-emerald-400 hover:text-emerald-700 leading-none ml-0.5"
+              className="text-[--primary]/50 hover:text-[--primary] leading-none ml-0.5"
               onMouseDown={(e) => { e.stopPropagation(); remove(city); }}
             >
               x
@@ -82,38 +82,38 @@ export function CityInputMulti({
           value={query}
           autoComplete="off"
           placeholder={values.length === 0 ? "City or airport code..." : "Add more..."}
-          className="flex-1 min-w-[80px] text-sm outline-none bg-transparent py-0.5"
+          className="flex-1 min-w-[80px] text-sm font-mono outline-none bg-transparent text-foreground placeholder:text-[--color-dim] py-0.5"
           onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
         />
       </div>
       {open && (showSuggested || filtered.length > 0) && (
-        <ul className="absolute z-20 w-full bg-white border border-gray-200 rounded-lg shadow-xl mt-1 max-h-72 overflow-auto">
+        <ul className="absolute z-20 w-full panel-elevated rounded mt-1 max-h-72 overflow-auto">
           {showSuggested && (
             <>
-              <li className="px-3 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wide bg-gray-50">
+              <li className="px-3 py-1 text-[10px] font-mono font-semibold text-[--color-dim] uppercase tracking-widest">
                 Suggested
               </li>
               {suggested.map((opt) => (
                 <li
                   key={opt.city}
-                  className="px-3 py-2 text-sm cursor-pointer hover:bg-emerald-50 hover:text-emerald-700 flex items-center justify-between gap-2"
+                  className="px-3 py-2 text-sm cursor-pointer hover:bg-[--primary]/10 hover:text-[--primary] flex items-center justify-between gap-2"
                   onMouseDown={() => select(opt.city)}
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     {opt.iata && (
-                      <span className="text-xs font-mono font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded shrink-0">
+                      <span className="text-xs font-mono font-bold text-[--primary] bg-[--primary]/10 border border-[--primary]/20 px-1.5 py-0.5 rounded shrink-0">
                         {opt.iata}
                       </span>
                     )}
-                    <span className="truncate text-gray-700">{opt.city}</span>
+                    <span className="truncate text-foreground">{opt.city}</span>
                   </div>
-                  <span className="text-xs text-gray-400 shrink-0">{opt.distMi.toLocaleString()} mi</span>
+                  <span className="text-xs font-mono text-[--color-dim] shrink-0">{opt.distMi.toLocaleString()} mi</span>
                 </li>
               ))}
               {filtered.length > 0 && (
-                <li className="px-3 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wide bg-gray-50 border-t border-gray-100">
+                <li className="px-3 py-1 text-[10px] font-mono font-semibold text-[--color-dim] uppercase tracking-widest border-t border-white/5">
                   All airports
                 </li>
               )}
@@ -122,15 +122,15 @@ export function CityInputMulti({
           {filtered.map((opt) => (
             <li
               key={opt.city}
-              className="px-3 py-2 text-sm cursor-pointer hover:bg-emerald-50 hover:text-emerald-700 flex items-center gap-2"
+              className="px-3 py-2 text-sm cursor-pointer hover:bg-[--primary]/10 hover:text-[--primary] flex items-center gap-2"
               onMouseDown={() => select(opt.city)}
             >
               {opt.iata && (
-                <span className="text-xs font-mono font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded shrink-0">
+                <span className="text-xs font-mono font-bold text-[--primary] bg-[--primary]/10 border border-[--primary]/20 px-1.5 py-0.5 rounded shrink-0">
                   {opt.iata}
                 </span>
               )}
-              <span className="truncate text-gray-700">{opt.city}</span>
+              <span className="truncate text-foreground">{opt.city}</span>
             </li>
           ))}
         </ul>

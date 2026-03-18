@@ -21,8 +21,8 @@ export default function FlightMap({ selectedPath, results }: { selectedPath: Pat
 
       if (!mapRef.current) {
         mapRef.current = L.map(containerRef.current, { zoomControl: true }).setView([37.5, -96], 4);
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
           maxZoom: 19,
         }).addTo(mapRef.current);
       }
@@ -53,7 +53,7 @@ export default function FlightMap({ selectedPath, results }: { selectedPath: Pat
             if (!c) return;
             const marker = L.circleMarker([c[0], c[1]], {
               radius: 8,
-              fillColor: "#1d4ed8",
+              fillColor: "#60a5fa",
               color: "#ffffff",
               weight: 2,
               fillOpacity: 0.85,
@@ -66,7 +66,7 @@ export default function FlightMap({ selectedPath, results }: { selectedPath: Pat
             if (!c) return;
             const marker = L.circleMarker([c[0], c[1]], {
               radius: 8,
-              fillColor: "#059669",
+              fillColor: "#34d399",
               color: "#ffffff",
               weight: 2,
               fillOpacity: 0.85,
@@ -88,7 +88,7 @@ export default function FlightMap({ selectedPath, results }: { selectedPath: Pat
         const b = cityCoords[stops[i + 1]];
         if (!a || !b) continue;
         const line = L.polyline([[a[0], a[1]], [b[0], b[1]]], {
-          color: "#059669",
+          color: "#34d399",
           weight: 2.5,
           opacity: 0.85,
           dashArray: "10 6",
@@ -103,7 +103,7 @@ export default function FlightMap({ selectedPath, results }: { selectedPath: Pat
         positions.push([c[0], c[1]]);
         const isOrigin = i === 0;
         const isDest = i === stops.length - 1;
-        const color = isOrigin ? "#059669" : isDest ? "#1d4ed8" : "#f97316";
+        const color = isOrigin ? "#34d399" : isDest ? "#60a5fa" : "#d4a843";
         const marker = L.circleMarker([c[0], c[1]], {
           radius: isOrigin || isDest ? 10 : 7,
           fillColor: color,
@@ -136,7 +136,7 @@ export default function FlightMap({ selectedPath, results }: { selectedPath: Pat
     <div
       ref={containerRef}
       style={{ width: "100%", height: "100%" }}
-      className="bg-gray-100 rounded-lg"
+      className="bg-[#12121a] rounded"
     />
   );
 }

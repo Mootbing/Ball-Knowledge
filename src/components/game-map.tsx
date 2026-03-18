@@ -119,11 +119,10 @@ export function GameMap({
   const routeFocusRef = useRef(routeFocus);
   routeFocusRef.current = routeFocus;
 
-  // Store events ref for building VenueInfo on click
   const eventsRef = useRef(events);
   eventsRef.current = events;
 
-  // Initialize map once
+  // Initialize map once — DARK mode
   useEffect(() => {
     let cancelled = false;
 
@@ -136,7 +135,7 @@ export function GameMap({
         disableDefaultUI: true,
         zoomControl: false,
         gestureHandling: "greedy",
-        colorScheme: "LIGHT",
+        colorScheme: "DARK",
         center: { lat: 39.8, lng: -98.5 },
         zoom: 4,
       });
@@ -145,7 +144,7 @@ export function GameMap({
         map,
         suppressMarkers: true,
         polylineOptions: {
-          strokeColor: "#3b82f6",
+          strokeColor: "#d4a843",
           strokeWeight: 4,
           strokeOpacity: 0.8,
         },
@@ -157,12 +156,11 @@ export function GameMap({
     return () => { cancelled = true; };
   }, []);
 
-  // Update markers when events change (or map becomes ready)
+  // Update markers when events change
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
 
-    // Clear old markers
     markersRef.current.forEach((m) => (m.marker.map = null));
     markersRef.current = [];
 
@@ -177,7 +175,6 @@ export function GameMap({
 
     const bounds = new google.maps.LatLngBounds();
 
-    // Group by venue
     const byVenue: Record<string, {
       lat: number; lng: number; venue: string; city: string; state: string;
       games: MapEvent[];
@@ -195,7 +192,7 @@ export function GameMap({
       bounds.extend(pos);
 
       const dot = document.createElement("div");
-      dot.style.cssText = "width:16px;height:16px;border-radius:50%;background:#1d4ed8;border:2.5px solid #fff;cursor:pointer;transition:all 150ms;";
+      dot.style.cssText = "width:16px;height:16px;border-radius:50%;background:#d4a843;border:2.5px solid rgba(255,255,255,0.8);cursor:pointer;transition:all 150ms;";
 
       const marker = new google.maps.marker.AdvancedMarkerElement({
         map,
@@ -235,16 +232,10 @@ export function GameMap({
     }
 
     defaultBoundsRef.current = bounds;
-
-    if (Object.keys(byVenue).length === 1) {
-      const only = Object.values(byVenue)[0];
-      map.fitBounds(bounds, { top: 40, left: 40, right: 40, bottom: 40 + bottomPaddingRef.current });
-    } else {
-      map.fitBounds(bounds, { top: 40, left: 40, right: 40, bottom: 40 + bottomPaddingRef.current });
-    }
+    map.fitBounds(bounds, { top: 40, left: 40, right: 40, bottom: 40 + bottomPaddingRef.current });
   }, [events, mapReady]);
 
-  // Highlight selected venue
+  // Highlight selected venue — green glow
   useEffect(() => {
     for (const { venue, dot } of markersRef.current) {
       if (selectedVenue && venue === selectedVenue) {
@@ -253,7 +244,7 @@ export function GameMap({
         dot.style.height = "22px";
         dot.style.boxShadow = "0 0 12px #22c55e80";
       } else {
-        dot.style.background = "#1d4ed8";
+        dot.style.background = "#d4a843";
         dot.style.width = "16px";
         dot.style.height = "16px";
         dot.style.boxShadow = "none";
@@ -285,14 +276,13 @@ export function GameMap({
     }
   }, [userLocation, mapReady]);
 
-  // Re-fit bounds when bottom padding changes (tray open/close)
+  // Re-fit bounds when bottom padding changes
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
 
     const rf = routeFocusRef.current;
     if (rf) {
-      // Route is active — re-fit the route bounds with new padding
       const bounds = new google.maps.LatLngBounds();
       bounds.extend({ lat: rf.venueLat, lng: rf.venueLng });
       bounds.extend({ lat: rf.airportLat, lng: rf.airportLng });
@@ -302,7 +292,7 @@ export function GameMap({
     }
   }, [bottomPadding, mapReady]);
 
-  // Route focus
+  // Route focus — overlay markers amber/green
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
@@ -322,14 +312,14 @@ export function GameMap({
     const airportPos = { lat: routeFocus.airportLat, lng: routeFocus.airportLng };
 
     const venueDot = document.createElement("div");
-    venueDot.style.cssText = "width:20px;height:20px;border-radius:50%;background:#22c55e;border:2px solid #fff;";
+    venueDot.style.cssText = "width:20px;height:20px;border-radius:50%;background:#22c55e;border:2px solid rgba(255,255,255,0.8);";
     const venueMarker = new google.maps.marker.AdvancedMarkerElement({
       map, position: venuePos, content: venueDot, title: routeFocus.venueName,
     });
     overlayMarkersRef.current.push(venueMarker);
 
     const airportDot = document.createElement("div");
-    airportDot.style.cssText = "width:20px;height:20px;border-radius:50%;background:#f97316;border:2px solid #fff;";
+    airportDot.style.cssText = "width:20px;height:20px;border-radius:50%;background:#d4a843;border:2px solid rgba(255,255,255,0.8);";
     const airportMarker = new google.maps.marker.AdvancedMarkerElement({
       map, position: airportPos, content: airportDot, title: routeFocus.airportCode,
     });

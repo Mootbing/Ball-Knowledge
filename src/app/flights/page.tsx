@@ -17,8 +17,8 @@ const routes = routesRaw as { from: string; to: string }[];
 const FlightMap = dynamic(() => import("@/components/flight-map"), {
   ssr: false,
   loading: () => (
-    <div className="w-full h-full bg-gray-100 rounded-lg flex items-center justify-center">
-      <span className="text-gray-400 text-sm">Loading map...</span>
+    <div className="w-full h-full bg-[#12121a] rounded flex items-center justify-center">
+      <span className="text-[--color-dim] text-sm font-mono">LOADING MAP...</span>
     </div>
   ),
 });
@@ -73,24 +73,24 @@ function RouteRow({
       onClick={onSelect}
       className={`w-full text-left px-3 py-2 flex items-center gap-2 transition-colors text-sm
         ${selected
-          ? "bg-emerald-50 border-l-2 border-emerald-500"
-          : "hover:bg-gray-50 border-l-2 border-transparent"
+          ? "bg-[--primary]/10 border-l-2 border-[--primary]"
+          : "hover:bg-white/[0.02] border-l-2 border-transparent"
         }`}
     >
       <span className="flex flex-wrap items-center gap-0.5 flex-1 min-w-0">
         {path.stops.map((stop, i) => (
           <span key={i} className="flex items-center gap-0.5">
-            <span className="font-mono text-sm font-bold text-gray-800">
+            <span className="font-mono text-sm font-bold text-foreground">
               {cityToIata[stop] ?? stop}
             </span>
             {i < path.stops.length - 1 && (
-              <span className="text-gray-400 text-xs">›</span>
+              <span className="text-[--color-dim] text-xs">›</span>
             )}
           </span>
         ))}
       </span>
-      <span className="text-xs text-gray-400 shrink-0">{distMi.toLocaleString()} mi</span>
-      <span className={`text-xs shrink-0 ${selected ? "text-emerald-600 font-semibold" : "text-gray-300"}`}>
+      <span className="text-xs font-mono text-[--color-dim] shrink-0">{distMi.toLocaleString()} mi</span>
+      <span className={`text-xs shrink-0 ${selected ? "text-[--primary] font-semibold" : "text-[--color-dim]/30"}`}>
         {selected ? "●" : "○"}
       </span>
     </button>
@@ -110,19 +110,19 @@ function LayoverSection({
 }) {
   const [open, setOpen] = useState(layovers < 2);
   const badgeClass = layovers === 0
-    ? "bg-emerald-50 text-emerald-600 border border-emerald-200"
-    : "bg-gray-100 text-gray-600 border border-gray-200";
+    ? "bg-[--color-price]/10 text-[--color-price] border border-[--color-price]/20"
+    : "bg-white/5 text-[--color-dim] border border-white/10";
 
   return (
-    <div className="border-t border-gray-100">
+    <div className="border-t border-white/5">
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-3 py-2 hover:bg-gray-50 transition-colors"
+        className="w-full flex items-center justify-between px-3 py-2 hover:bg-white/[0.02] transition-colors"
       >
         <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${badgeClass}`}>
           {layovers === 0 ? "Direct" : `${layovers} stop${layovers > 1 ? "s" : ""}`}
         </span>
-        <span className="text-xs text-gray-400">
+        <span className="text-xs font-mono text-[--color-dim]">
           {paths.length} route{paths.length !== 1 ? "s" : ""} {open ? "▲" : "▼"}
         </span>
       </button>
@@ -175,26 +175,26 @@ function RouteGroupCard({
 
   return (
     <div
-      className={`rounded-xl overflow-hidden transition-all border ${
+      className={`rounded overflow-hidden transition-all border ${
         booked
-          ? "border-gray-200 bg-gray-50 opacity-50"
+          ? "border-white/5 bg-white/[0.02] opacity-50"
           : hasSelected
-            ? "border-emerald-300 shadow-md shadow-emerald-100 bg-white"
-            : "border-gray-200 bg-white"
+            ? "border-[--primary]/30 panel-elevated"
+            : "panel"
       }`}
     >
       <div className="p-3">
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <span className={`font-mono text-lg font-black ${booked ? "text-gray-400" : "text-gray-800"}`}>{fromIata}</span>
-              <span className="text-gray-400">→</span>
-              <span className={`font-mono text-lg font-black ${booked ? "text-gray-400" : "text-gray-800"}`}>{toIata}</span>
+              <span className={`font-mono text-lg font-black ${booked ? "text-[--color-dim]" : "text-foreground"}`}>{fromIata}</span>
+              <span className="text-[--color-dim]">→</span>
+              <span className={`font-mono text-lg font-black ${booked ? "text-[--color-dim]" : "text-foreground"}`}>{toIata}</span>
               {booked && (
-                <span className="text-xs text-emerald-600 font-medium bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">Looked</span>
+                <span className="text-xs font-mono text-[--color-price] bg-[--color-price]/10 border border-[--color-price]/20 px-1.5 py-0.5 rounded">LOOKED</span>
               )}
             </div>
-            <p className="text-xs text-gray-400 mt-0.5 truncate">
+            <p className="text-xs font-mono text-[--color-dim] mt-0.5 truncate">
               {group.from} → {group.to}
             </p>
           </div>
@@ -205,10 +205,10 @@ function RouteGroupCard({
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => { onBook(); setExpanded(false); }}
-                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-mono font-semibold transition-colors ${
                   booked
-                    ? "bg-gray-300 text-gray-500 hover:bg-gray-400"
-                    : "bg-emerald-600 text-white hover:bg-emerald-700"
+                    ? "bg-white/5 text-[--color-dim] hover:bg-white/10"
+                    : "bg-[--primary] text-[--primary-foreground] hover:opacity-90"
                 }`}
               >
                 Book <ExternalLink className="size-3" />
@@ -216,7 +216,7 @@ function RouteGroupCard({
             )}
             <button
               onClick={() => setExpanded(!expanded)}
-              className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 rounded hover:bg-gray-50 transition-colors whitespace-nowrap"
+              className="text-xs font-mono text-[--color-dim] hover:text-foreground px-2 py-1 rounded hover:bg-white/5 transition-colors whitespace-nowrap"
             >
               {group.paths.length} route{group.paths.length !== 1 ? "s" : ""}{" "}
               {expanded ? <ChevronUp className="size-3 inline" /> : <ChevronDown className="size-3 inline" />}
@@ -339,43 +339,43 @@ function FlightsContent() {
   const groups = filteredResults ? groupPathsByRoute(filteredResults) : [];
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-gray-50">
+    <div className="h-screen flex flex-col overflow-hidden bg-[#0a0a0f]">
       {/* Top bar */}
-      <header className="shrink-0 bg-white border-b border-gray-200 shadow-sm z-30">
+      <header className="shrink-0 panel border-b border-white/5 z-30">
         <div className="flex items-center gap-3 px-4 py-2">
-          <a href="/" className="text-gray-400 hover:text-gray-600 transition-colors">
+          <a href="/" className="text-[--color-dim] hover:text-foreground transition-colors">
             <ArrowLeft className="size-5" />
           </a>
-          <Plane className="size-5 text-emerald-600" />
+          <Plane className="size-5 text-[--primary]" />
           <div className="min-w-0 flex-1">
-            <h1 className="text-sm font-bold text-gray-800 leading-tight">Frontier Flights</h1>
+            <h1 className="text-sm font-bold text-foreground leading-tight font-mono">FRONTIER FLIGHTS</h1>
             {fromParams.length > 0 && toParams.length > 0 && (
-              <p className="text-emerald-600 text-xs truncate">
+              <p className="text-[--primary] text-xs font-mono truncate">
                 {fromParams.map((c) => cityToIata[c] ?? c).join(", ")} → {toParams.map((c) => cityToIata[c] ?? c).join(", ")}
               </p>
             )}
           </div>
           <div className="flex items-center gap-3">
             {!loading && results && results.length > 0 && (
-              <span className="text-xs text-gray-400 hidden md:block">
+              <span className="text-xs font-mono text-[--color-dim] hidden md:block">
                 {results.length} route{results.length !== 1 ? "s" : ""} found
               </span>
             )}
             <button
               onClick={() => setSearchOpen(!searchOpen)}
-              className="flex flex-col justify-center items-center gap-1.5 w-8 h-8 rounded-lg hover:bg-gray-100 transition-colors"
+              className="flex flex-col justify-center items-center gap-1.5 w-8 h-8 rounded hover:bg-white/5 transition-colors"
               aria-label="Toggle search"
             >
-              <span className={`block w-4 h-0.5 bg-gray-600 rounded transition-all duration-200 origin-center ${searchOpen ? "rotate-45 translate-y-[5px]" : ""}`} />
-              <span className={`block w-4 h-0.5 bg-gray-600 rounded transition-all duration-200 ${searchOpen ? "opacity-0 scale-x-0" : ""}`} />
-              <span className={`block w-4 h-0.5 bg-gray-600 rounded transition-all duration-200 origin-center ${searchOpen ? "-rotate-45 -translate-y-[5px]" : ""}`} />
+              <span className={`block w-4 h-0.5 bg-[--color-dim] rounded transition-all duration-200 origin-center ${searchOpen ? "rotate-45 translate-y-[5px]" : ""}`} />
+              <span className={`block w-4 h-0.5 bg-[--color-dim] rounded transition-all duration-200 ${searchOpen ? "opacity-0 scale-x-0" : ""}`} />
+              <span className={`block w-4 h-0.5 bg-[--color-dim] rounded transition-all duration-200 origin-center ${searchOpen ? "-rotate-45 -translate-y-[5px]" : ""}`} />
             </button>
           </div>
         </div>
 
         {/* Collapsible search form */}
         {searchOpen && (
-          <div className="border-t border-gray-100 px-4 py-3 bg-gray-50">
+          <div className="border-t border-white/5 px-4 py-3 bg-[#0a0a0f]">
             <div className="max-w-4xl mx-auto">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                 <CityInputMulti id="f-from" label="From" values={froms} onChange={setFroms} userCoords={userCoords} suggestCoords={userCoords} />
@@ -383,18 +383,18 @@ function FlightsContent() {
               </div>
               <div className="flex flex-wrap items-end gap-3">
                 <div>
-                  <label htmlFor="f-date" className="block text-xs font-semibold text-gray-600 mb-1">Travel Date</label>
+                  <label htmlFor="f-date" className="block text-xs font-mono font-semibold text-[--color-dim] mb-1">TRAVEL DATE</label>
                   <input
                     id="f-date"
                     type="date"
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
-                    className="h-[38px] px-2.5 border border-gray-200 rounded-lg bg-white text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                    className="h-[38px] px-2.5 border border-white/8 rounded bg-white/5 text-sm text-foreground font-mono focus:ring-2 focus:ring-[--primary]/50 outline-none"
                   />
                 </div>
                 <div className="min-w-[140px]">
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">
-                    Max Stops: <span className="text-emerald-600 font-bold">{sliderLabel(slider)}</span>
+                  <label className="block text-xs font-mono font-semibold text-[--color-dim] mb-1">
+                    MAX STOPS: <span className="text-[--primary] font-bold">{sliderLabel(slider)}</span>
                   </label>
                   <Slider
                     min={1}
@@ -407,7 +407,7 @@ function FlightsContent() {
                 </div>
                 <button
                   onClick={handleSearch}
-                  className="h-[38px] px-5 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors"
+                  className="h-[38px] px-5 rounded bg-[--primary] text-[--primary-foreground] text-sm font-mono font-semibold hover:opacity-90 transition-colors"
                 >
                   Search
                 </button>
@@ -419,16 +419,16 @@ function FlightsContent() {
 
       {/* Split screen */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Map — left half */}
-        <div className="w-1/2 relative p-2">
+        {/* Map */}
+        <div className="h-[40vh] md:h-auto md:w-1/2 relative p-2">
           <FlightMap selectedPath={selectedPath} results={filteredResults} />
         </div>
 
-        {/* Results — right half */}
-        <ScrollArea className="w-1/2 border-l border-gray-200 bg-white">
+        {/* Results */}
+        <ScrollArea className="flex-1 md:w-1/2 border-l border-white/5">
           <div className="p-4">
             <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-              <h2 className="text-sm font-bold text-gray-800">
+              <h2 className="text-sm font-bold font-mono text-foreground">
                 {loading ? "Searching..." :
                   results === null ? "Enter a search above" :
                   results.length === 0 ? "No routes found" :
@@ -449,11 +449,11 @@ function FlightsContent() {
                       const label = n === 0 ? `${count} direct` : `${count} · ${n} stop${n > 1 ? "s" : ""}`;
                       const baseClass = n === 0
                         ? hidden
-                          ? "bg-gray-100 text-gray-400 border-gray-200 line-through"
-                          : "bg-emerald-50 text-emerald-600 border-emerald-200"
+                          ? "bg-white/5 text-[--color-dim]/40 border-white/5 line-through"
+                          : "bg-[--color-price]/10 text-[--color-price] border-[--color-price]/20"
                         : hidden
-                          ? "bg-gray-50 text-gray-300 border-gray-200 line-through"
-                          : "bg-gray-100 text-gray-600 border-gray-200";
+                          ? "bg-white/5 text-[--color-dim]/40 border-white/5 line-through"
+                          : "bg-white/5 text-[--color-dim] border-white/10";
                       return (
                         <button
                           key={n}
@@ -471,41 +471,41 @@ function FlightsContent() {
             </div>
 
             {selectedPath && (
-              <div className="mb-3 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg flex items-center gap-4 text-xs text-gray-600">
+              <div className="mb-3 px-3 py-2 panel-inset rounded flex items-center gap-4 text-xs font-mono text-[--color-dim]">
                 <span className="flex items-center gap-1.5">
-                  <span className="inline-block w-3 h-3 rounded-full bg-emerald-600 ring-2 ring-white" />
+                  <span className="inline-block w-3 h-3 rounded-full bg-[--color-price] ring-2 ring-[#0a0a0f]" />
                   Origin
                 </span>
                 {selectedPath.layovers > 0 && (
                   <span className="flex items-center gap-1.5">
-                    <span className="inline-block w-3 h-3 rounded-full bg-orange-500 ring-2 ring-white" />
+                    <span className="inline-block w-3 h-3 rounded-full bg-[#facc15] ring-2 ring-[#0a0a0f]" />
                     Layover
                   </span>
                 )}
                 <span className="flex items-center gap-1.5">
-                  <span className="inline-block w-3 h-3 rounded-full bg-blue-700 ring-2 ring-white" />
+                  <span className="inline-block w-3 h-3 rounded-full bg-[--color-train] ring-2 ring-[#0a0a0f]" />
                   Destination
                 </span>
               </div>
             )}
 
             {loading ? (
-              <div className="flex items-center justify-center py-16 text-gray-400 text-sm">Searching...</div>
+              <div className="flex items-center justify-center py-16 text-[--color-dim] text-sm font-mono">SEARCHING...</div>
             ) : filteredResults && filteredResults.length === 0 && results && results.length > 0 ? (
-              <div className="text-center py-16 text-gray-400">
-                <Plane className="size-10 mx-auto mb-3 text-gray-300" />
-                <p className="font-semibold text-gray-600">All routes hidden</p>
-                <p className="text-sm mt-1">Click the badges above to show routes again.</p>
+              <div className="text-center py-16 text-[--color-dim]">
+                <Plane className="size-10 mx-auto mb-3 text-[--color-dim]/30" />
+                <p className="font-semibold font-mono text-foreground">ALL ROUTES HIDDEN</p>
+                <p className="text-sm mt-1 font-mono">Click the badges above to show routes again.</p>
               </div>
             ) : results === null ? (
-              <div className="text-center py-16 text-gray-400 text-sm">
+              <div className="text-center py-16 text-[--color-dim] text-sm font-mono">
                 Use the search above to find Frontier routes.
               </div>
             ) : results.length === 0 ? (
-              <div className="text-center py-16 text-gray-400">
-                <Plane className="size-10 mx-auto mb-3 text-gray-300" />
-                <p className="font-semibold text-gray-600">No routes found</p>
-                <p className="text-sm mt-1">Try increasing max stops or check city names.</p>
+              <div className="text-center py-16 text-[--color-dim]">
+                <Plane className="size-10 mx-auto mb-3 text-[--color-dim]/30" />
+                <p className="font-semibold font-mono text-foreground">NO ROUTES FOUND</p>
+                <p className="text-sm mt-1 font-mono">Try increasing max stops or check city names.</p>
               </div>
             ) : (
               <div className="flex flex-col gap-3">
@@ -535,7 +535,7 @@ function FlightsContent() {
 export default function FlightsPage() {
   return (
     <Suspense fallback={
-      <div className="h-screen flex items-center justify-center text-gray-400 text-sm">Loading...</div>
+      <div className="h-screen flex items-center justify-center bg-[#0a0a0f] text-[--color-dim] text-sm font-mono">LOADING...</div>
     }>
       <FlightsContent />
     </Suspense>

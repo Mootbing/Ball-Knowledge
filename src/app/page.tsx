@@ -4,9 +4,7 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { RouteFocus, VenueInfo } from "@/components/game-map";
 import { TopBar } from "@/components/top-bar";
-import { StadiumCard } from "@/components/stadium-card";
 import { BottomTray } from "@/components/bottom-tray";
-import { Loader2 } from "lucide-react";
 
 const GameMap = dynamic(
   () => import("@/components/game-map").then((m) => m.GameMap),
@@ -68,7 +66,7 @@ function todayEST(): string {
 
 const LS_KEY = "balltastic_state";
 
-function loadState(): { date?: string; search?: string; tray?: "collapsed" | "half"; loc?: { lat: number; lng: number } } {
+function loadState(): { date?: string; search?: string; tray?: "collapsed" | "peek" | "expanded"; loc?: { lat: number; lng: number } } {
   try {
     return JSON.parse(localStorage.getItem(LS_KEY) ?? "{}");
   } catch { return {}; }
@@ -89,7 +87,12 @@ export default function Home() {
   const [search, setSearch] = useState(() => loadState().search ?? "");
   const [selectedVenue, setSelectedVenue] = useState<VenueInfo | null>(null);
   const [routeFocus, setRouteFocus] = useState<RouteFocus | null>(null);
-  const [trayState, setTrayState] = useState<"collapsed" | "half">(() => loadState().tray ?? "collapsed");
+  const [trayState, setTrayState] = useState<"collapsed" | "peek" | "expanded">(() => {
+    const saved = loadState().tray;
+    // Migrate old "half" to "peek"
+    if (saved === "half" as string) return "peek";
+    return saved ?? "collapsed";
+  });
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(() => loadState().loc ?? null);
   const [vh, setVh] = useState(800);
 
@@ -109,13 +112,13 @@ export default function Home() {
 
   // Request geolocation only if no saved location
   useEffect(() => {
-    if (userLocation) return; // already have saved location
+    if (userLocation) return;
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
       },
-      () => {}, // silently ignore denial
+      () => {},
       { enableHighAccuracy: false, timeout: 10000 }
     );
   }, []);
@@ -132,11 +135,9 @@ export default function Home() {
       })
       .then((d: EventsResponse) => {
         setData(d);
-        // Set current date to today if available, else first available date
         const today = todayEST();
         const available = d.dates.map((g) => g.date);
         if (!available.includes(today) && available.length > 0) {
-          // Find nearest future date
           const future = available.find((date) => date >= today);
           setCurrentDate(future ?? available[0]);
         }
@@ -182,19 +183,21 @@ export default function Home() {
   const handleMarkerClick = useCallback((venue: VenueInfo) => {
     setSelectedVenue(venue);
     setRouteFocus(null);
-    setTrayState("half");
+    setTrayState("peek");
   }, []);
 
   const handleRouteFocus = useCallback((focus: RouteFocus | null) => {
     setRouteFocus(focus);
   }, []);
 
-  const handleTrayStateChange = useCallback((state: "collapsed" | "half") => {
+  const handleTrayStateChange = useCallback((state: "collapsed" | "peek" | "expanded") => {
     setTrayState(state);
     if (state === "collapsed") {
       setRouteFocus(null);
     }
   }, []);
+
+  const bottomPadding = trayState === "collapsed" ? 56 : trayState === "peek" ? Math.round(vh * 0.35) : Math.round(vh * 0.85);
 
   return (
     <main className="relative h-dvh w-dvw overflow-hidden">
@@ -205,10 +208,10 @@ export default function Home() {
         selectedVenue={selectedVenue?.venue ?? null}
         onMarkerClick={handleMarkerClick}
         userLocation={userLocation}
-        bottomPadding={trayState === "half" ? Math.round(vh * 0.5) : 52}
+        bottomPadding={bottomPadding}
       />
 
-      {/* Top bar: search + date selector */}
+      {/* Top bar: command bar */}
       {data && (
         <TopBar
           search={search}
@@ -223,15 +226,7 @@ export default function Home() {
         />
       )}
 
-      {/* Stadium detail card */}
-      <StadiumCard
-        venue={selectedVenue}
-        onClose={() => setSelectedVenue(null)}
-        onExpand={() => setTrayState("half")}
-        trayExpanded={trayState === "half"}
-      />
-
-      {/* Bottom tray */}
+      {/* Bottom tray — intel panel */}
       {data && (
         <BottomTray
           games={todayGames}
@@ -246,23 +241,23 @@ export default function Home() {
         />
       )}
 
-      {/* Loading overlay */}
+      {/* Loading overlay — dark */}
       {loading && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/70">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0a0a0f]/90">
           <div className="flex flex-col items-center gap-3">
-            <Loader2 className="size-8 animate-spin text-gray-500" />
-            <p className="text-sm text-gray-500">Loading games...</p>
+            <div className="w-8 h-8 border-2 border-[--primary]/30 border-t-[--primary] rounded-full animate-spin" />
+            <p className="text-sm font-mono text-[--primary] tracking-widest">LOADING INTEL...</p>
           </div>
         </div>
       )}
 
-      {/* Error overlay */}
+      {/* Error overlay — dark */}
       {error && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/70">
-          <div className="glass rounded-2xl p-6 max-w-md text-center">
-            <p className="font-medium text-red-500 mb-2">Error</p>
-            <p className="text-sm text-gray-500">{error}</p>
-            <p className="text-xs text-gray-400 mt-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0a0a0f]/90">
+          <div className="panel rounded-lg p-6 max-w-md text-center">
+            <p className="font-mono font-semibold text-[--color-danger] mb-2 tracking-widest">ERROR</p>
+            <p className="text-sm text-[--color-dim]">{error}</p>
+            <p className="text-xs text-[--color-dim]/60 mt-3 font-mono">
               Check that TICKETMASTER_API_KEY is set in .env.local
             </p>
           </div>

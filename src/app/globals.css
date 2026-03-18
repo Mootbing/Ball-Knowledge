@@ -97,7 +97,7 @@
   --color-uber: #ffffff;
   --color-lyft: #ff00bf;
   --color-drive: #9ca3af;
-  --color-odds-close: #f59e0b;
+
   --color-danger: #ef4444;
   --color-dim: #4b5060;
 }
@@ -200,7 +200,7 @@
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #d4a843;
+  background: #4A90D9;
   border: 2.5px solid rgba(255,255,255,0.8);
   position: relative;
   cursor: default;
@@ -211,7 +211,7 @@
   position: absolute;
   inset: -2px;
   border-radius: 50%;
-  background: #d4a843;
+  background: #4A90D9;
   opacity: 0.4;
   animation: pulse-ring 2s ease-out infinite;
 }

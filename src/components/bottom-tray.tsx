@@ -5,8 +5,6 @@ import type { RouteFocus, TransitStop, VenueInfo } from "./game-map";
 import {
   ChevronUp,
   ChevronDown,
-  Clock,
-  MapPin,
   Plane,
   Car,
   Bus,
@@ -14,18 +12,16 @@ import {
   BusFront,
   ArrowUpRight,
   RefreshCw,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
   Navigation,
 } from "lucide-react";
 
-type TrayState = "collapsed" | "half";
+type TrayState = "collapsed" | "peek" | "expanded";
 
 interface GameEvent {
   id: string;
   name: string;
   url: string;
+  est_date?: string;
   est_time: string | null;
   venue: string;
   city: string;
@@ -53,7 +49,7 @@ function formatTimeEST(time: string | null) {
   const [h, m] = time.split(":").map(Number);
   const period = h >= 12 ? "PM" : "AM";
   const hour12 = h % 12 || 12;
-  return `${hour12}:${String(m).padStart(2, "0")} ${period}`;
+  return `${hour12}:${String(m).padStart(2, "0")} ${period} ET`;
 }
 
 function formatDriveTime(minutes: number): string {
@@ -84,7 +80,7 @@ function lyftDeepLink(fromLat: number, fromLng: number, toLat: number, toLng: nu
 
 function haversineMiles(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const toRad = (d: number) => (d * Math.PI) / 180;
-  const R = 3958.8; // Earth radius in miles
+  const R = 3958.8;
   const dLat = toRad(lat2 - lat1);
   const dLng = toRad(lng2 - lng1);
   const a =
@@ -93,119 +89,137 @@ function haversineMiles(lat1: number, lng1: number, lat2: number, lng2: number):
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-type SortKey = "game" | "time" | "distance" | "spread" | "price" | "record" | null;
+type SortKey = "time" | "price" | "dist" | "odds" | "record" | "team";
 type SortDir = "asc" | "desc";
+
+const SORT_KEYS: SortKey[] = ["time", "price", "dist", "odds", "record", "team"];
 
 function formatDateHeading(dateStr: string) {
   const [y, m, d] = dateStr.split("-").map(Number);
   const date = new Date(y, m - 1, d);
-  return date.toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
+  const mon = date.toLocaleDateString("en-US", { month: "short" }).toUpperCase();
+  const day = String(d).padStart(2, "0");
+  const wday = date.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase();
+  return `${mon} ${day} ${wday}`;
 }
 
-function TransitStopCell({
-  stop,
+function TransitCards({
+  stops,
   icon: Icon,
-  codeHref,
   vLat,
   vLng,
-  times,
-  loading,
+  enriched,
+  enriching,
   onEnrich,
   onRouteFocus,
   isAnimating,
   venueName,
+  colorClass,
 }: {
-  stop: TransitStop;
+  stops: TransitStop[];
   icon: React.ComponentType<{ className?: string }>;
-  codeHref: string | null;
   vLat: number;
   vLng: number;
-  times: { driveMinutes: number; transitMinutes: number | null; transitFare: string | null; uberEstimate: string | null; lyftEstimate: string | null } | null;
-  loading: boolean;
-  onEnrich: () => void;
+  enriched: Record<string, { driveMinutes: number; transitMinutes: number | null; transitFare: string | null; uberEstimate: string | null; lyftEstimate: string | null }>;
+  enriching: Set<string>;
+  onEnrich: (stop: TransitStop) => void;
   onRouteFocus: (focus: RouteFocus | null) => void;
   isAnimating: boolean;
   venueName: string;
+  colorClass: string;
 }) {
-  const baseFocus = { venueLat: vLat, venueLng: vLng, airportLat: stop.lat, airportLng: stop.lng, airportCode: stop.code, venueName };
-
-  if (!times) {
-    return (
-      <div className="flex items-center gap-1 hover:text-gray-800" onClick={(e) => e.stopPropagation()}>
-        <Icon className="size-3" />
-        {codeHref ? (
-          <a href={codeHref} target="_blank" rel="noopener noreferrer" className="font-mono font-semibold hover:underline"
-            onMouseEnter={() => !isAnimating && onRouteFocus({ ...baseFocus, pinOnly: true })}
-            onMouseLeave={() => !isAnimating && onRouteFocus(null)}
-          >{stop.code}</a>
-        ) : (
-          <span className="font-mono font-semibold cursor-default"
-            onMouseEnter={() => !isAnimating && onRouteFocus({ ...baseFocus, pinOnly: true })}
-            onMouseLeave={() => !isAnimating && onRouteFocus(null)}
-          >{stop.code}</span>
-        )}
-        <button
-          className={`flex items-center gap-0.5 text-gray-400 hover:text-gray-600 ${loading ? "animate-spin" : ""}`}
-          onClick={(e) => { e.stopPropagation(); onEnrich(); }}
-          title="Enrich"
-        >
-          <RefreshCw className="size-2.5" />
-        </button>
-      </div>
-    );
-  }
+  if (stops.length === 0) return null;
+  const enrichKey = (sLat: number, sLng: number) => `${vLat},${vLng};${sLat},${sLng}`;
 
   return (
-    <div className="border-l-2 border-gray-200 pl-1.5" onClick={(e) => e.stopPropagation()}
-      onMouseEnter={() => !isAnimating && onRouteFocus(baseFocus)}
-      onMouseLeave={() => !isAnimating && onRouteFocus(null)}
-    >
-      {/* Line 1: Icon + Code + Drive time */}
-      <div className="flex items-center justify-between gap-2">
-        <span className="flex items-center gap-1">
-          <Icon className="size-3" />
-          {codeHref ? (
-            <a href={codeHref} target="_blank" rel="noopener noreferrer" className="font-mono font-semibold hover:underline">{stop.code}</a>
-          ) : (
-            <span className="font-mono font-semibold">{stop.code}</span>
-          )}
-        </span>
-        <a href={gmapsUrl(vLat, vLng, stop.lat, stop.lng, "driving")} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 hover:underline whitespace-nowrap">
-          <Car className="size-2.5" />
-          {formatDriveTime(times.driveMinutes)}
-        </a>
-      </div>
-      {/* Rideshare rows */}
-      {times.uberEstimate && (
-        <div className="flex items-center gap-1 pl-4 text-[10px]">
-          <a href={uberDeepLink(vLat, vLng, stop.lat, stop.lng)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:underline">
-            <span className="inline-flex items-center justify-center rounded bg-black px-1 py-0.5 text-[8px] font-bold text-white leading-none">UBER</span>
-            <span className="text-gray-500">{times.uberEstimate}</span>
-          </a>
-        </div>
-      )}
-      {times.lyftEstimate && (
-        <div className="flex items-center gap-1 pl-4 text-[10px]">
-          <a href={lyftDeepLink(vLat, vLng, stop.lat, stop.lng)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:underline">
-            <span className="inline-flex items-center justify-center rounded bg-pink-500 px-1 py-0.5 text-[8px] font-bold text-white leading-none">LYFT</span>
-            <span className="text-pink-500">{times.lyftEstimate}</span>
-          </a>
-        </div>
-      )}
-      {/* Line 3: Public transit */}
-      {times.transitMinutes != null && (
-        <div className="pl-4">
-          <a href={gmapsUrl(vLat, vLng, stop.lat, stop.lng, "transit")} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-blue-500 hover:underline">
-            <Bus className="size-2.5" />
-            {formatDriveTime(times.transitMinutes)}
-            {times.transitFare && <span className="text-emerald-600 ml-0.5">{times.transitFare}</span>}
-          </a>
-        </div>
-      )}
+    <div className="flex gap-2 overflow-x-auto no-scrollbar">
+      {stops.map((stop) => {
+        const ek = enrichKey(stop.lat, stop.lng);
+        const times = enriched[ek] ?? null;
+        const loading = enriching.has(ek);
+        const baseFocus = { venueLat: vLat, venueLng: vLng, airportLat: stop.lat, airportLng: stop.lng, airportCode: stop.code, venueName };
+
+        return (
+          <div
+            key={stop.code}
+            className="flex flex-col gap-1 text-[11px] font-mono rounded border border-white/5 bg-white/[0.02] px-2.5 py-2 min-w-[8rem] shrink-0"
+            onMouseEnter={() => !isAnimating && onRouteFocus(baseFocus)}
+            onMouseLeave={() => !isAnimating && onRouteFocus(null)}
+          >
+            {/* Stop header */}
+            <div className="flex items-center gap-1.5">
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${stop.lat},${stop.lng}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`flex items-center gap-1.5 font-bold ${colorClass} underline`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Icon className="size-3.5" />
+                {stop.code}
+              </a>
+              <span className="ml-auto font-normal text-[10px] text-[--color-dim]">({Math.round(haversineMiles(vLat, vLng, stop.lat, stop.lng))}mi)</span>
+            </div>
+            {/* Transport options */}
+            {times ? (
+              <div className="flex flex-col gap-0.5 mt-0.5 text-[10px]">
+                <a
+                  href={gmapsUrl(vLat, vLng, stop.lat, stop.lng, "driving")}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[--color-dim] hover:text-foreground border border-white/10 no-underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Car className="size-3" /> {formatDriveTime(times.driveMinutes)}
+                </a>
+                <div className="flex items-center gap-1">
+                  {times.uberEstimate && (
+                    <a
+                      href={uberDeepLink(vLat, vLng, stop.lat, stop.lng)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 bg-[#191919] text-white font-semibold hover:bg-[#2a2a2a] transition-colors no-underline border border-white/10"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      UBER {times.uberEstimate}
+                    </a>
+                  )}
+                  {times.lyftEstimate && (
+                    <a
+                      href={lyftDeepLink(vLat, vLng, stop.lat, stop.lng)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 bg-[#d4004c] text-white font-semibold hover:bg-[#e0105a] transition-colors no-underline"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      LYFT {times.lyftEstimate}
+                    </a>
+                  )}
+                </div>
+                {times.transitMinutes != null && (
+                  <a
+                    href={gmapsUrl(vLat, vLng, stop.lat, stop.lng, "transit")}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[--color-dim] hover:text-foreground border border-white/10 no-underline"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Bus className="size-3" /> {formatDriveTime(times.transitMinutes)}{times.transitFare ? ` ${times.transitFare}` : ""}
+                  </a>
+                )}
+              </div>
+            ) : (
+              <button
+                className={`text-[--color-dim] hover:text-foreground mt-0.5 flex items-center gap-1 ${loading ? "[&>svg]:animate-spin" : ""}`}
+                onClick={(e) => { e.stopPropagation(); onEnrich(stop); }}
+                title="Load transit info"
+              >
+                <RefreshCw className="size-2.5" /> {loading ? "Loading…" : "Load info"}
+              </button>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -236,8 +250,9 @@ export function BottomTray({
   const isDragging = useRef(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const prevTrayState = useRef(trayState);
+  const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
 
-  // Persist tray columns & sort to localStorage
+  // Sort state
   const trayLsKey = "balltastic_tray";
   function loadTray(): Record<string, unknown> {
     try { return JSON.parse(localStorage.getItem(trayLsKey) ?? "{}"); } catch { return {}; }
@@ -247,26 +262,12 @@ export function BottomTray({
   }
   const saved = useRef(loadTray());
 
-  const [sortKey, setSortKey] = useState<SortKey>((saved.current.sortKey as SortKey) ?? null);
+  const [sortKey, setSortKey] = useState<SortKey>((saved.current.sortKey as SortKey) ?? "time");
   const [sortDir, setSortDir] = useState<SortDir>((saved.current.sortDir as SortDir) ?? "asc");
 
-  const b = (k: string, def = true) => saved.current[k] != null ? saved.current[k] as boolean : def;
-  const [showOdds, setShowOdds] = useState(b("showOdds"));
-  const [showTickets, setShowTickets] = useState(b("showTickets"));
-  const [showRecord, setShowRecord] = useState(b("showRecord"));
-  const [showGame, setShowGame] = useState(b("showGame"));
-  const [showTime, setShowTime] = useState(b("showTime"));
-  const [showVenue, setShowVenue] = useState(b("showVenue"));
-  const [showAirports, setShowAirports] = useState(b("showAirports"));
-  const [showTrains, setShowTrains] = useState(b("showTrains"));
-  const [showBuses, setShowBuses] = useState(b("showBuses"));
-  const [showLinks, setShowLinks] = useState(b("showLinks"));
-  const [showAction, setShowAction] = useState(b("showAction"));
-
   useEffect(() => { saveTray({ sortKey, sortDir }); }, [sortKey, sortDir]);
-  useEffect(() => { saveTray({ showOdds, showTickets, showRecord, showGame, showTime, showVenue, showAirports, showTrains, showBuses, showLinks, showAction }); }, [showOdds, showTickets, showRecord, showGame, showTime, showVenue, showAirports, showTrains, showBuses, showLinks, showAction]);
 
-  // Precompute distances
+  // Distances
   const distanceMap = useMemo(() => {
     const map: Record<string, number> = {};
     if (!userLocation) return map;
@@ -278,7 +279,7 @@ export function BottomTray({
     return map;
   }, [games, userLocation]);
 
-  // Nearest airport to the user (searches ALL known airports, not just today's game airports)
+  // Nearest user airport
   const nearestUserAirport = useMemo(() => {
     if (!userLocation) return null;
     const airports = allAirports && allAirports.length > 0 ? allAirports : games.flatMap((g) => g.nearbyAirports ?? []);
@@ -293,42 +294,32 @@ export function BottomTray({
     return best?.code ?? null;
   }, [allAirports, games, userLocation]);
 
-  const handleSort = useCallback((key: SortKey) => {
-    if (key === "distance" && !userLocation) return;
-    setSortKey((prev) => {
-      if (prev === key) {
-        setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-        return prev;
-      }
+  const handleHeaderSort = useCallback((key: SortKey) => {
+    if (key === sortKey) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
       setSortDir("asc");
-      return key;
-    });
-  }, [userLocation]);
+    }
+  }, [sortKey]);
 
   const sortedGames = useMemo(() => {
-    if (!sortKey) return games;
     const sorted = [...games].sort((a, b) => {
       let cmp = 0;
       switch (sortKey) {
-        case "game": {
-          const nameA = a.name.toLowerCase();
-          const nameB = b.name.toLowerCase();
-          cmp = nameA.localeCompare(nameB);
-          break;
-        }
         case "time": {
           const tA = a.est_time ?? "99:99";
           const tB = b.est_time ?? "99:99";
           cmp = tA.localeCompare(tB);
           break;
         }
-        case "distance": {
+        case "dist": {
           const dA = distanceMap[a.id] ?? Infinity;
           const dB = distanceMap[b.id] ?? Infinity;
           cmp = dA - dB;
           break;
         }
-        case "spread": {
+        case "odds": {
           const sA = a.odds ? Math.abs(a.odds.away_win - a.odds.home_win) : Infinity;
           const sB = b.odds ? Math.abs(b.odds.away_win - b.odds.home_win) : Infinity;
           cmp = sA - sB;
@@ -354,13 +345,21 @@ export function BottomTray({
           cmp = recDiff(a.away_record, a.home_record) - recDiff(b.away_record, b.home_record);
           break;
         }
+        case "team": {
+          const parseName = (n: string) => {
+            const p = n.split(/\s+(?:vs?\.?|VS\.?)\s+/);
+            return (p.length > 1 ? p.slice(1).join(" ") : p[0]).replace(/\s*\(.*?\)/g, "").trim();
+          };
+          cmp = parseName(a.name).localeCompare(parseName(b.name));
+          break;
+        }
       }
       return sortDir === "asc" ? cmp : -cmp;
     });
     return sorted;
   }, [games, sortKey, sortDir, distanceMap]);
 
-  // Enriched travel times: key = "venueLat,venueLng;stationLat,stationLng"
+  // Enrichment state
   const [enriched, setEnriched] = useState<Record<string, { driveMinutes: number; transitMinutes: number | null; transitFare: string | null; uberEstimate: string | null; lyftEstimate: string | null }>>({});
   const [enriching, setEnriching] = useState<Set<string>>(new Set());
 
@@ -388,24 +387,9 @@ export function BottomTray({
     }
   }, [enriched, enriching]);
 
-  const enrichAllOfType = useCallback(async (type: "airports" | "trains" | "buses") => {
-    const field = type === "airports" ? "nearbyAirports" : type === "trains" ? "nearbyTrainStations" : "nearbyBusStations";
-    const stops: { vLat: number; vLng: number; stop: TransitStop }[] = [];
-    for (const event of games) {
-      if (event.lat == null || event.lng == null) continue;
-      for (const s of event[field] ?? []) {
-        const key = enrichKey(event.lat!, event.lng!, s.lat, s.lng);
-        if (!enriched[key] && !enriching.has(key) && !stops.some((x) => enrichKey(x.vLat, x.vLng, x.stop.lat, x.stop.lng) === key)) {
-          stops.push({ vLat: event.lat!, vLng: event.lng!, stop: s });
-        }
-      }
-    }
-    await Promise.all(stops.map((s) => handleEnrich(s.vLat, s.vLng, s.stop)));
-  }, [games, enriched, enriching, handleEnrich]);
-
-  // Auto-scroll to selected venue row
+  // Auto-scroll to selected venue
   useEffect(() => {
-    if (!selectedVenue || trayState !== "half") return;
+    if (!selectedVenue || trayState === "collapsed") return;
     const timer = setTimeout(() => {
       const container = scrollRef.current;
       if (!container) return;
@@ -417,7 +401,7 @@ export function BottomTray({
     return () => clearTimeout(timer);
   }, [selectedVenue, trayState]);
 
-  // Track tray state changes → disable hover during animation
+  // Track tray state changes
   useEffect(() => {
     if (prevTrayState.current !== trayState) {
       prevTrayState.current = trayState;
@@ -426,10 +410,6 @@ export function BottomTray({
       return () => clearTimeout(timer);
     }
   }, [trayState]);
-
-  const toggle = useCallback(() => {
-    onTrayStateChange(trayState === "collapsed" ? "half" : "collapsed");
-  }, [trayState, onTrayStateChange]);
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     dragStartY.current = e.clientY;
@@ -447,498 +427,331 @@ export function BottomTray({
       const delta = dragStartY.current - e.clientY;
       if (isDragging.current) {
         if (delta > 50) {
-          onTrayStateChange("half");
+          // Swipe up
+          if (trayState === "collapsed") onTrayStateChange("peek");
+          else if (trayState === "peek") onTrayStateChange("expanded");
         } else if (delta < -50) {
-          onTrayStateChange("collapsed");
+          // Swipe down
+          if (trayState === "expanded") onTrayStateChange("peek");
+          else if (trayState === "peek") onTrayStateChange("collapsed");
         }
       } else {
-        toggle();
+        // Tap — cycle
+        if (trayState === "collapsed") onTrayStateChange("peek");
+        else if (trayState === "peek") onTrayStateChange("expanded");
+        else onTrayStateChange("collapsed");
       }
     },
-    [toggle, onTrayStateChange]
+    [trayState, onTrayStateChange]
   );
 
-  const height = trayState === "collapsed" ? "52px" : "50vh";
+  const height = trayState === "collapsed" ? "56px" : trayState === "peek" ? "35vh" : "85vh";
 
   return (
     <div
       className="fixed bottom-0 left-0 right-0 z-10 tray-transition pointer-events-auto"
       style={{ height }}
     >
-      <div className="h-full glass rounded-t-2xl flex flex-col">
+      <div className="h-full panel rounded-t-lg flex flex-col">
         {/* Drag handle */}
         <div
-          className="flex flex-col items-center pt-2 pb-1 cursor-grab active:cursor-grabbing select-none touch-none"
+          className="flex flex-col items-center pt-2 pb-1 cursor-grab active:cursor-grabbing select-none touch-none border-b border-white/5"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
         >
-          <div className="w-10 h-1 rounded-full bg-gray-300 mb-1.5" />
-          <div className="flex items-center gap-2 text-xs text-gray-500 px-4 w-full">
-            <span className="font-medium">
-              {games.length} game{games.length !== 1 ? "s" : ""} &middot;{" "}
-              {formatDateHeading(date)}
+          <div className="w-12 h-0.5 rounded-full bg-[--primary]/40 mb-1.5" />
+          <div className="flex items-center gap-2 text-xs px-4 w-full">
+            <span className="font-mono text-foreground tracking-wide">
+              {games.length} GAMES &middot; {formatDateHeading(date)}
             </span>
-            {trayState === "half" && (
-              <span className="flex items-center gap-1 ml-2" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
-                {([
-                  ["Tickets", showTickets, setShowTickets],
-                  ["Odds", showOdds, setShowOdds],
-                  ["Record", showRecord, setShowRecord],
-                  ["Game", showGame, setShowGame],
-                  ["Time", showTime, setShowTime],
-                  ["Venue", showVenue, setShowVenue],
-                  ["Airports", showAirports, setShowAirports],
-                  ["Trains", showTrains, setShowTrains],
-                  ["Buses", showBuses, setShowBuses],
-                  ["Links", showLinks, setShowLinks],
-                  ["Action", showAction, setShowAction],
-                ] as [string, boolean, React.Dispatch<React.SetStateAction<boolean>>][]).map(([label, show, setShow]) => (
-                  <span key={label} className="flex items-center gap-1">
-                    <span className="text-gray-300">&middot;</span>
-                    <button onClick={() => setShow((v) => !v)} className={`px-1 rounded ${show ? "text-gray-600" : "text-gray-300 line-through"}`}>{label}</button>
-                  </span>
-                ))}
-              </span>
-            )}
             <span className="flex-1" />
             {trayState === "collapsed" ? (
-              <ChevronUp className="size-3.5" />
+              <ChevronUp className="size-3.5 text-[--color-dim]" />
+            ) : trayState === "peek" ? (
+              <ChevronUp className="size-3.5 text-[--color-dim]" />
             ) : (
-              <ChevronDown className="size-3.5" />
+              <ChevronDown className="size-3.5 text-[--color-dim]" />
             )}
           </div>
         </div>
 
-        {/* Scrollable game list */}
-        {trayState === "half" && (
-          <div ref={scrollRef} className={`flex-1 overflow-y-auto no-scrollbar px-3 pb-3 ${isAnimating ? "pointer-events-none" : ""}`}>
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 glass">
-                <tr className="text-xs text-gray-400">
-                  {showTickets && <th className="text-left py-2 px-2 font-medium">
-                    <button onClick={() => handleSort("price")} className="flex items-center gap-0.5 hover:text-gray-600">
-                      Tickets
-                      {sortKey === "price" ? (sortDir === "asc" ? <ArrowUp className="size-2.5" /> : <ArrowDown className="size-2.5" />) : <ArrowUpDown className="size-2.5" />}
-                    </button>
-                  </th>}
-                  {showOdds && <th className="text-left py-2 px-2 font-medium">
-                    <button onClick={() => handleSort("spread")} className="flex items-center gap-0.5 hover:text-gray-600">
-                      Odds
-                      {sortKey === "spread" ? (sortDir === "asc" ? <ArrowUp className="size-2.5" /> : <ArrowDown className="size-2.5" />) : <ArrowUpDown className="size-2.5" />}
-                    </button>
-                  </th>}
-                  {showRecord && <th className="text-left py-2 px-2 font-medium">
-                    <button onClick={() => handleSort("record")} className="flex items-center gap-0.5 hover:text-gray-600">
-                      Record
-                      {sortKey === "record" ? (sortDir === "asc" ? <ArrowUp className="size-2.5" /> : <ArrowDown className="size-2.5" />) : <ArrowUpDown className="size-2.5" />}
-                    </button>
-                  </th>}
-                  {showGame && <th className="text-left py-2 px-2 font-medium">
-                    <button onClick={() => handleSort("game")} className="flex items-center gap-0.5 hover:text-gray-600">
-                      Game
-                      {sortKey === "game" ? (sortDir === "asc" ? <ArrowUp className="size-2.5" /> : <ArrowDown className="size-2.5" />) : <ArrowUpDown className="size-2.5" />}
-                    </button>
-                  </th>}
-                  {showTime && <th className="text-left py-2 px-2 font-medium">
-                    <button onClick={() => handleSort("time")} className="flex items-center gap-0.5 hover:text-gray-600">
-                      Time
-                      {sortKey === "time" ? (sortDir === "asc" ? <ArrowUp className="size-2.5" /> : <ArrowDown className="size-2.5" />) : <ArrowUpDown className="size-2.5" />}
-                    </button>
-                  </th>}
-                  {showVenue && <th className="text-left py-2 px-2 font-medium">
-                    <button onClick={() => handleSort("distance")} className={`flex items-center gap-0.5 ${userLocation ? "hover:text-gray-600" : "opacity-40 cursor-not-allowed"}`} title={userLocation ? "Sort by distance" : "Set location to sort by distance"}>
-                      Venue
-                      {sortKey === "distance" ? (sortDir === "asc" ? <ArrowUp className="size-2.5" /> : <ArrowDown className="size-2.5" />) : <ArrowUpDown className="size-2.5" />}
-                    </button>
-                  </th>}
-                  {showAirports && (
-                    <th className="text-left py-2 px-2 font-medium">
-                      <span className="flex items-center gap-1">
-                        Airports
-                        <button onClick={() => enrichAllOfType("airports")} title="Enrich all airports" className="text-gray-400 hover:text-gray-600">
-                          <RefreshCw className="size-2.5" />
-                        </button>
-                      </span>
-                    </th>
-                  )}
-                  {showTrains && (
-                    <th className="text-left py-2 px-2 font-medium">
-                      <span className="flex items-center gap-1">
-                        Trains
-                        <button onClick={() => enrichAllOfType("trains")} title="Enrich all trains" className="text-gray-400 hover:text-gray-600">
-                          <RefreshCw className="size-2.5" />
-                        </button>
-                      </span>
-                    </th>
-                  )}
-                  {showBuses && (
-                    <th className="text-left py-2 px-2 font-medium">
-                      <span className="flex items-center gap-1">
-                        Buses
-                        <button onClick={() => enrichAllOfType("buses")} title="Enrich all buses" className="text-gray-400 hover:text-gray-600">
-                          <RefreshCw className="size-2.5" />
-                        </button>
-                      </span>
-                    </th>
-                  )}
-                  {showLinks && <th className="text-left py-2 px-2 font-medium">Links</th>}
-                  {showAction && <th className="text-left py-2 px-2 font-medium">Action</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {sortedGames.map((event) => {
-                  const parts = event.name.split(/\s+(?:vs?\.?|VS\.?)\s+/);
-                  // TM names are "Home vs Away" (home team listed first, since the event is at their venue)
-                  const home = parts[0].replace(/\s*\(.*?\)/g, "").trim();
-                  const away = parts.length > 1 ? parts.slice(1).join(" vs ").replace(/\s*\(.*?\)/g, "").trim() : null;
-                  const isSelected = selectedVenue === event.venue;
-                  const airports = event.nearbyAirports ?? [];
-                  const trains = event.nearbyTrainStations ?? [];
-                  const buses = event.nearbyBusStations ?? [];
-                  const kalshiUrl = event.odds
-                    ? `https://kalshi.com/markets/KXNBAGAME/${event.odds.kalshi_event}`
-                    : null;
+        {/* Column headers — clickable to sort */}
+        {trayState !== "collapsed" && (
+          <div className="px-3 py-1.5 border-b border-white/5">
+            <div className="flex items-center gap-2.5 text-[9px] font-mono tracking-widest uppercase">
+              <span onClick={() => handleHeaderSort("price")} className={`shrink-0 min-w-[2.5rem] cursor-pointer hover:text-foreground transition-colors ${sortKey === "price" ? "text-foreground" : "text-[--color-dim]"}`}>
+                TICKET{sortKey === "price" ? (sortDir === "asc" ? " ↑" : " ↓") : ""}
+              </span>
+              <span onClick={() => handleHeaderSort("record")} className={`shrink-0 min-w-[3.2rem] cursor-pointer hover:text-foreground transition-colors ${sortKey === "record" ? "text-foreground" : "text-[--color-dim]"}`}>
+                REC{sortKey === "record" ? (sortDir === "asc" ? " ↑" : " ↓") : ""}
+              </span>
+              <span onClick={() => handleHeaderSort("odds")} className={`shrink-0 min-w-[2.5rem] cursor-pointer hover:text-foreground transition-colors ${sortKey === "odds" ? "text-foreground" : "text-[--color-dim]"}`}>
+                ODDS{sortKey === "odds" ? (sortDir === "asc" ? " ↑" : " ↓") : ""}
+              </span>
+              <span onClick={() => handleHeaderSort("team")} className={`flex-1 min-w-0 cursor-pointer hover:text-foreground transition-colors ${sortKey === "team" ? "text-foreground" : "text-[--color-dim]"}`}>
+                TEAM{sortKey === "team" ? (sortDir === "asc" ? " ↑" : " ↓") : ""}
+              </span>
+              <span onClick={() => handleHeaderSort("dist")} className={`flex-1 min-w-0 cursor-pointer hover:text-foreground transition-colors ${sortKey === "dist" ? "text-foreground" : "text-[--color-dim]"}`}>
+                STADIUM{sortKey === "dist" ? (sortDir === "asc" ? " ↑" : " ↓") : ""}
+              </span>
+              <span onClick={() => handleHeaderSort("time")} className={`shrink-0 cursor-pointer hover:text-foreground transition-colors ${sortKey === "time" ? "text-foreground" : "text-[--color-dim]"}`}>
+                TIME{sortKey === "time" ? (sortDir === "asc" ? " ↑" : " ↓") : ""}
+              </span>
+            </div>
+          </div>
+        )}
 
-                  return (
-                    <tr
-                      key={event.id}
-                      data-venue={event.venue}
-                      className={`hover:bg-gray-50 cursor-pointer transition-colors ${
-                        isSelected ? "bg-blue-50" : ""
-                      }`}
-                      onClick={() => {
-                        if (event.lat != null && event.lng != null) {
-                          const vLat = event.lat!;
-                          const vLng = event.lng!;
-                          // Enrich all transport for this venue
-                          for (const s of [...airports, ...trains, ...buses]) {
-                            handleEnrich(vLat, vLng, s);
-                          }
-                          // Build venue info from this event row
-                          const venueGames = games.filter(
-                            (g) => g.venue === event.venue
-                          );
-                          onVenueClick({
-                            venue: event.venue,
-                            city: event.city,
-                            state: event.state,
-                            lat: vLat,
-                            lng: vLng,
-                            games: venueGames.map((g) => ({
-                              id: g.id,
-                              name: g.name,
-                              url: g.url,
-                              est_time: g.est_time,
-                              min_price: g.min_price,
-                              odds: g.odds,
-                              away_record: g.away_record,
-                              home_record: g.home_record,
-                            })),
-                            airports: event.nearbyAirports ?? [],
-                            trains: event.nearbyTrainStations ?? [],
-                            buses: event.nearbyBusStations ?? [],
-                          });
-                        }
-                      }}
-                    >
-                      {showTickets && <td className="py-2 px-2 text-xs" onClick={(e) => e.stopPropagation()}>
-                        {event.espn_price ? (
-                          <div className="flex flex-col gap-0.5">
-                            {event.espn_price.url ? (
-                              <a href={event.espn_price.url} target="_blank" rel="noopener noreferrer" className="text-emerald-600 font-semibold hover:underline">
-                                ${event.espn_price.amount}
-                              </a>
-                            ) : (
-                              <span className="text-emerald-600 font-semibold">${event.espn_price.amount}</span>
-                            )}
-                            <span className="text-[10px] text-gray-400">{event.espn_price.available.toLocaleString()} avail</span>
-                          </div>
-                        ) : event.min_price ? (
-                          <span className="text-gray-500">${event.min_price.amount}</span>
-                        ) : (
-                          <span className="text-gray-300">--</span>
+        {/* Scrollable game cards */}
+        {trayState !== "collapsed" && (
+          <div ref={scrollRef} className={`flex-1 overflow-y-auto no-scrollbar px-3 pb-3 space-y-2 ${isAnimating ? "pointer-events-none" : ""}`}>
+            {games.length === 0 && (
+              <div className="flex items-center justify-center py-12 text-[--color-dim] text-sm font-mono">
+                NO GAMES AVAILABLE
+              </div>
+            )}
+            {sortedGames.map((event) => {
+              const parts = event.name.split(/\s+(?:vs?\.?|VS\.?)\s+/);
+              const home = parts[0].replace(/\s*\(.*?\)/g, "").trim();
+              const away = parts.length > 1 ? parts.slice(1).join(" vs ").replace(/\s*\(.*?\)/g, "").trim() : null;
+              const isSelected = selectedVenue === event.venue;
+              const isExpanded = expandedCardId === event.id;
+              const airports = event.nearbyAirports ?? [];
+              const trains = event.nearbyTrainStations ?? [];
+              const buses = event.nearbyBusStations ?? [];
+              const kalshiUrl = event.odds
+                ? `https://kalshi.com/markets/KXNBAGAME/${event.odds.kalshi_event}`
+                : null;
+              const price = event.espn_price?.amount ?? event.min_price?.amount;
+              const dist = distanceMap[event.id];
+              const spread = event.odds ? Math.abs(event.odds.away_win - event.odds.home_win) : null;
+              const isCloseOdds = spread != null && spread <= 10;
+              const isCloseMatchup = (() => {
+                if (!event.away_record || !event.home_record) return false;
+                const pa = event.away_record.split("-").map(Number);
+                const ph = event.home_record.split("-").map(Number);
+                if (pa.length < 2 || ph.length < 2) return false;
+                const tA = pa[0] + pa[1];
+                const tH = ph[0] + ph[1];
+                if (tA === 0 || tH === 0) return false;
+                return Math.abs(pa[0] / tA - ph[0] / tH) <= 0.05;
+              })();
+
+              return (
+                <div
+                  key={event.id}
+                  data-venue={event.venue}
+                  className={`rounded card-enter transition-colors cursor-pointer ${
+                    isSelected
+                      ? "border-l-2 border-[--primary] bg-[--primary]/5 panel-elevated"
+                      : "panel hover:bg-white/[0.02]"
+                  }`}
+                  onClick={() => {
+                    if (event.lat != null && event.lng != null) {
+                      const vLat = event.lat!;
+                      const vLng = event.lng!;
+                      for (const s of [...airports, ...trains, ...buses]) {
+                        handleEnrich(vLat, vLng, s);
+                      }
+                      const venueGames = games.filter((g) => g.venue === event.venue);
+                      onVenueClick({
+                        venue: event.venue,
+                        city: event.city,
+                        state: event.state,
+                        lat: vLat,
+                        lng: vLng,
+                        games: venueGames.map((g) => ({
+                          id: g.id,
+                          name: g.name,
+                          url: g.url,
+                          est_time: g.est_time,
+                          min_price: g.min_price,
+                          odds: g.odds,
+                          away_record: g.away_record,
+                          home_record: g.home_record,
+                        })),
+                        airports: event.nearbyAirports ?? [],
+                        trains: event.nearbyTrainStations ?? [],
+                        buses: event.nearbyBusStations ?? [],
+                      });
+                    }
+                    setExpandedCardId(isExpanded ? null : event.id);
+                  }}
+                >
+                  {/* Card header — always visible */}
+                  <div className="px-3 py-2.5">
+                    <div className="flex items-start gap-2.5">
+                      {/* Col: Ticket */}
+                      <div className="flex flex-col items-start shrink-0 gap-0.5 min-w-[2.5rem]">
+                        {price != null && (
+                          <span className={`font-mono text-sm font-semibold ${price < 30 ? "text-[--color-price]" : "text-foreground"}`}>${price}</span>
                         )}
-                      </td>}
-                      {showOdds && <td className="py-2 px-2 text-xs font-mono">
-                        {event.odds ? (
-                          <>
-                            <div className={event.odds.away_win > event.odds.home_win ? "text-emerald-600" : "text-gray-500"}>
-                              A {event.odds.away_win}%
-                            </div>
-                            <div className={event.odds.home_win > event.odds.away_win ? "text-emerald-600" : "text-gray-500"}>
-                              H {event.odds.home_win}%
-                            </div>
-                            <div className={Math.abs(event.odds.away_win - event.odds.home_win) <= 10 ? "text-amber-600 font-semibold" : "text-gray-400"}>
-                              ±{Math.abs(event.odds.away_win - event.odds.home_win)}%
-                            </div>
-                          </>
-                        ) : (
-                          <span className="text-gray-300">--</span>
+                        {event.espn_price?.available != null && event.espn_price.available > 0 && (
+                          <span className="font-mono text-[10px] text-[--color-dim]">{event.espn_price.available} avl</span>
                         )}
-                      </td>}
-                      {showRecord && (() => {
-                        function parseWinPct(rec: string | null | undefined): number | null {
-                          if (!rec) return null;
-                          const parts = rec.split("-").map(Number);
-                          if (parts.length < 2 || isNaN(parts[0]) || isNaN(parts[1])) return null;
-                          const total = parts[0] + parts[1];
-                          return total > 0 ? parts[0] / total : 0.5;
-                        }
-                        const awayPct = parseWinPct(event.away_record);
-                        const homePct = parseWinPct(event.home_record);
-                        const closeMatch = awayPct != null && homePct != null && Math.abs(awayPct - homePct) <= 0.05;
-                        return (
-                          <td className={`py-2 px-2 text-xs tabular-nums ${closeMatch ? "text-amber-600 font-semibold" : "text-gray-400"}`}>
-                            {away ? (
-                              <>
-                                <div>{event.away_record ?? "—"}</div>
-                                <div>{event.home_record ?? "—"}</div>
-                              </>
-                            ) : (
-                              <span className="text-gray-300">--</span>
-                            )}
-                          </td>
-                        );
-                      })()}
-                      {showGame && <td className="py-2 px-2">
+                      </div>
+                      {/* Col: Records */}
+                      <div className="flex flex-col items-start shrink-0 gap-0.5 min-w-[3.2rem]">
                         {away ? (
                           <>
-                            <div>{away}</div>
-                            <div className="text-gray-500">@ {home}</div>
+                            <span className={`font-mono text-xs tabular-nums ${isCloseMatchup ? "text-[#facc15]" : "text-[--color-dim]"}`}>{event.away_record || "—"}</span>
+                            <span className={`font-mono text-xs tabular-nums ${isCloseMatchup ? "text-[#facc15]" : "text-[--color-dim]"}`}>{event.home_record || "—"}</span>
+                          </>
+                        ) : <span className="text-xs">&nbsp;</span>}
+                      </div>
+                      {/* Col: Odds + spread */}
+                      <div className="flex flex-col items-start shrink-0 gap-0.5 min-w-[2.5rem]">
+                        {away && event.odds ? (
+                          <>
+                            <span className={`font-mono text-xs tabular-nums ${isCloseOdds ? "text-[#facc15] font-semibold" : "text-[--color-dim]"}`}>{event.odds.away_win}%</span>
+                            <span className={`font-mono text-xs tabular-nums ${isCloseOdds ? "text-[#facc15] font-semibold" : "text-[--color-dim]"}`}>{event.odds.home_win}%</span>
+                            <span className={`font-mono text-[10px] ${isCloseOdds ? "text-[#facc15]" : "text-[--color-dim]"}`}>±{spread}</span>
+                          </>
+                        ) : <span className="text-xs">&nbsp;</span>}
+                      </div>
+                      {/* Col: Team */}
+                      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                        {away ? (
+                          <>
+                            <span className="text-sm font-semibold uppercase text-foreground truncate">{away}</span>
+                            <span className="text-sm font-semibold uppercase text-foreground truncate"><span className="text-[--color-dim] font-normal mr-1">@</span>{home}</span>
                           </>
                         ) : (
-                          event.name
+                          <span className="text-sm font-semibold uppercase text-foreground truncate">{event.name}</span>
                         )}
-                      </td>}
-                      {showTime && <td className="py-2 px-2 text-gray-500">
-                        <span className="flex items-center gap-1">
-                          <Clock className="size-3" />
-                          {formatTimeEST(event.est_time)}
-                        </span>
-                      </td>}
-                      {showVenue && <td className="py-2 px-2 text-gray-500">
-                        <span className="flex items-center gap-1">
-                          <MapPin className="size-3" />
-                          {event.lat != null && event.lng != null ? (
-                            <a
-                              href={`https://www.google.com/maps/search/?api=1&query=${event.lat},${event.lng}&query_place_id=${encodeURIComponent(event.venue)}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="hover:underline hover:text-gray-700 transition-colors"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              {event.venue}
-                            </a>
-                          ) : event.venue}
-                          {distanceMap[event.id] != null && (
-                            <span className="text-[10px] text-gray-400">
-                              ({Math.round(distanceMap[event.id])} mi)
-                            </span>
+                      </div>
+                      {/* Col: Stadium */}
+                      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                        <span className="text-[11px] text-[--color-dim] font-mono truncate">{event.venue}</span>
+                        <span className="text-[10px] text-[--color-dim] font-mono truncate">{event.city}, {event.state}{dist != null ? ` · ${Math.round(dist)}mi` : ""}</span>
+                      </div>
+                      {/* Col: Time */}
+                      <div className="shrink-0">
+                        <span className="font-mono text-sm text-foreground">{formatTimeEST(event.est_time)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Expanded section */}
+                  {isExpanded && (
+                    <div className="px-3 pb-3 border-t border-white/5" onClick={(e) => e.stopPropagation()}>
+                      {/* Transit section */}
+                      {(airports.length > 0 || trains.length > 0 || buses.length > 0) && event.lat != null && event.lng != null && (
+                        <div className="mt-2 space-y-1.5">
+                          <div className="text-[10px] font-mono tracking-widest text-[--color-dim] uppercase">TRANSIT</div>
+                          {airports.length > 0 && (
+                            <TransitCards
+                              stops={airports}
+                              icon={Plane}
+                              vLat={event.lat!}
+                              vLng={event.lng!}
+                              enriched={enriched}
+                              enriching={enriching}
+                              onEnrich={(stop) => handleEnrich(event.lat!, event.lng!, stop)}
+                              onRouteFocus={onRouteFocus}
+                              isAnimating={isAnimating}
+                              venueName={event.venue}
+                              colorClass="text-[--color-flight]"
+                            />
                           )}
-                        </span>
-                        <span className="text-[10px] text-gray-400">
-                          {event.city}, {event.state}
-                        </span>
-                      </td>}
-                      {showAirports && <td className="py-2 px-2">
-                        {airports.length > 0 ? (
-                          <div className="flex flex-col gap-1 text-xs text-gray-500">
-                            {airports.map((apt) => {
-                              const vLat = event.lat!, vLng = event.lng!;
-                              const ek = event.lat != null && event.lng != null ? enrichKey(vLat, vLng, apt.lat, apt.lng) : null;
-                              return (
-                                <TransitStopCell
-                                  key={apt.code}
-                                  stop={apt}
-                                  icon={Plane}
-                                  codeHref={`https://www.google.com/maps/search/?api=1&query=${apt.lat},${apt.lng}`}
-                                  vLat={vLat}
-                                  vLng={vLng}
-                                  times={ek ? enriched[ek] ?? null : null}
-                                  loading={ek ? enriching.has(ek) : false}
-                                  onEnrich={() => event.lat != null && event.lng != null && handleEnrich(vLat, vLng, apt)}
-                                  onRouteFocus={onRouteFocus}
-                                  isAnimating={isAnimating}
-                                  venueName={event.venue}
-                                />
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <span className="text-xs text-gray-300">--</span>
-                        )}
-                      </td>}
-                      {showTrains && <td className="py-2 px-2">
-                        {trains.length > 0 ? (
-                          <div className="flex flex-col gap-1 text-xs text-gray-500">
-                            {trains.map((stn) => {
-                              const vLat = event.lat!, vLng = event.lng!;
-                              const ek = event.lat != null && event.lng != null ? enrichKey(vLat, vLng, stn.lat, stn.lng) : null;
-                              return (
-                                <TransitStopCell
-                                  key={stn.code}
-                                  stop={stn}
-                                  icon={TrainFront}
-                                  codeHref={`https://www.google.com/maps/search/?api=1&query=${stn.lat},${stn.lng}`}
-                                  vLat={vLat}
-                                  vLng={vLng}
-                                  times={ek ? enriched[ek] ?? null : null}
-                                  loading={ek ? enriching.has(ek) : false}
-                                  onEnrich={() => event.lat != null && event.lng != null && handleEnrich(vLat, vLng, stn)}
-                                  onRouteFocus={onRouteFocus}
-                                  isAnimating={isAnimating}
-                                  venueName={event.venue}
-                                />
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <span className="text-xs text-gray-300">--</span>
-                        )}
-                      </td>}
-                      {showBuses && <td className="py-2 px-2">
-                        {buses.length > 0 ? (
-                          <div className="flex flex-col gap-1 text-xs text-gray-500">
-                            {buses.map((bus) => {
-                              const vLat = event.lat!, vLng = event.lng!;
-                              const ek = event.lat != null && event.lng != null ? enrichKey(vLat, vLng, bus.lat, bus.lng) : null;
-                              return (
-                                <TransitStopCell
-                                  key={bus.code}
-                                  stop={bus}
-                                  icon={BusFront}
-                                  codeHref={`https://www.google.com/maps/search/?api=1&query=${bus.lat},${bus.lng}`}
-                                  vLat={vLat}
-                                  vLng={vLng}
-                                  times={ek ? enriched[ek] ?? null : null}
-                                  loading={ek ? enriching.has(ek) : false}
-                                  onEnrich={() => event.lat != null && event.lng != null && handleEnrich(vLat, vLng, bus)}
-                                  onRouteFocus={onRouteFocus}
-                                  isAnimating={isAnimating}
-                                  venueName={event.venue}
-                                />
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <span className="text-xs text-gray-300">--</span>
-                        )}
-                      </td>}
-                      {showLinks && <td className="py-2 px-2">
-                        <div className="flex flex-col gap-0.5 text-xs">
-                          <a
-                            href={event.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-0.5 text-gray-500 hover:text-gray-800"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            Ticketmaster
-                            <ArrowUpRight className="size-3" />
+                          {trains.length > 0 && (
+                            <TransitCards
+                              stops={trains}
+                              icon={TrainFront}
+                              vLat={event.lat!}
+                              vLng={event.lng!}
+                              enriched={enriched}
+                              enriching={enriching}
+                              onEnrich={(stop) => handleEnrich(event.lat!, event.lng!, stop)}
+                              onRouteFocus={onRouteFocus}
+                              isAnimating={isAnimating}
+                              venueName={event.venue}
+                              colorClass="text-[--color-train]"
+                            />
+                          )}
+                          {buses.length > 0 && (
+                            <TransitCards
+                              stops={buses}
+                              icon={BusFront}
+                              vLat={event.lat!}
+                              vLng={event.lng!}
+                              enriched={enriched}
+                              enriching={enriching}
+                              onEnrich={(stop) => handleEnrich(event.lat!, event.lng!, stop)}
+                              onRouteFocus={onRouteFocus}
+                              isAnimating={isAnimating}
+                              venueName={event.venue}
+                              colorClass="text-[--color-bus]"
+                            />
+                          )}
+                        </div>
+                      )}
+
+                      {/* Links section */}
+                      <div className="mt-2">
+                        <div className="text-[10px] font-mono tracking-widest text-[--color-dim] uppercase mb-1">LINKS</div>
+                        <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-mono">
+                          <a href={event.url} target="_blank" rel="noopener noreferrer" className="text-[--color-dim] hover:text-foreground underline inline-flex items-center gap-0.5">
+                            TICKETMASTER <ArrowUpRight className="size-2.5" />
                           </a>
                           {away && (
-                            <a
-                              href={stubhubUrl(home)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-0.5 text-gray-500 hover:text-gray-800"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              StubHub
-                              <ArrowUpRight className="size-3" />
+                            <a href={stubhubUrl(home)} target="_blank" rel="noopener noreferrer" className="text-[--color-dim] hover:text-foreground underline inline-flex items-center gap-0.5">
+                              STUBHUB <ArrowUpRight className="size-2.5" />
                             </a>
                           )}
                           {event.espn_price?.url && (
-                            <a
-                              href={event.espn_price.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-0.5 text-gray-500 hover:text-gray-800"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              VividSeats
-                              <ArrowUpRight className="size-3" />
+                            <a href={event.espn_price.url} target="_blank" rel="noopener noreferrer" className="text-[--color-dim] hover:text-foreground underline inline-flex items-center gap-0.5">
+                              VIVIDSEATS <ArrowUpRight className="size-2.5" />
                             </a>
                           )}
                           {kalshiUrl && (
-                            <a
-                              href={kalshiUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-0.5 text-gray-500 hover:text-gray-800"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              Kalshi
-                              <ArrowUpRight className="size-3" />
+                            <a href={kalshiUrl} target="_blank" rel="noopener noreferrer" className="text-[--color-dim] hover:text-foreground underline inline-flex items-center gap-0.5">
+                              KALSHI <ArrowUpRight className="size-2.5" />
                             </a>
                           )}
-                          <a
-                            href={`https://www.espn.com/nba/scoreboard/_/date/${date.replace(/-/g, "")}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-0.5 text-gray-500 hover:text-gray-800"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            ESPN
-                            <ArrowUpRight className="size-3" />
+                          <a href={`https://www.espn.com/nba/scoreboard/_/date/${date.replace(/-/g, "")}`} target="_blank" rel="noopener noreferrer" className="text-[--color-dim] hover:text-foreground underline inline-flex items-center gap-0.5">
+                            ESPN <ArrowUpRight className="size-2.5" />
                           </a>
+                          {airports.map((apt) => (
+                            <span key={apt.code} className="inline-flex items-center gap-0">
+                              <a
+                                href={`https://www.google.com/travel/flights?q=flights+from+${nearestUserAirport ?? ""}+to+${apt.code}+on+${date}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[--color-flight]/70 hover:text-[--color-flight] underline inline-flex items-center gap-0.5"
+                              >
+                                <Plane className="size-2.5" /> {apt.code}
+                              </a>
+                              <a
+                                href={`/flights?to=${apt.code}${nearestUserAirport ? `&from=${nearestUserAirport}` : ""}&date=${date}`}
+                                className="ml-0.5 inline-flex items-center justify-center w-4 h-4 rounded bg-[--color-price]/20 text-[--color-price] text-[8px] font-black hover:bg-[--color-price]/30 transition-colors leading-none"
+                                title="Frontier flights"
+                              >
+                                F
+                              </a>
+                            </span>
+                          ))}
                         </div>
-                      </td>}
-                      {showAction && <td className="py-2 px-2">
-                        <div className="flex flex-col gap-1">
-                          {userLocation && event.lat != null && event.est_time ? (
-                            <a
-                              href={`/take-me?originLat=${userLocation.lat}&originLng=${userLocation.lng}&venue=${encodeURIComponent(event.venue)}&venueLat=${event.lat}&venueLng=${event.lng}&date=${date}&time=${event.est_time}&game=${encodeURIComponent(event.name)}`}
-                              className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-yellow-50 text-yellow-700 text-xs font-medium hover:bg-yellow-100 transition-colors"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <Navigation className="size-3" /> PLAN
-                            </a>
-                          ) : (
-                            <span className="text-[10px] text-gray-300">Set location</span>
-                          )}
-                          {airports.length > 0 && (
-                            <div className="flex flex-col gap-1">
-                              {airports.map((apt) => (
-                                <span key={apt.code} className="inline-flex items-center gap-0" onClick={(e) => e.stopPropagation()}>
-                                  <a
-                                    href={`https://www.google.com/travel/flights?q=flights+from+${nearestUserAirport ?? ""}+to+${apt.code}+on+${date}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-l bg-emerald-50 text-emerald-600 text-[10px] font-medium hover:bg-emerald-100 transition-colors"
-                                  >
-                                    <Plane className="size-2.5" />
-                                    {apt.code}
-                                  </a>
-                                  <a
-                                    href={`/flights?to=${apt.code}${nearestUserAirport ? `&from=${nearestUserAirport}` : ""}&date=${date}`}
-                                    className="inline-flex items-center justify-center w-5 h-5 rounded-r bg-emerald-600 text-white text-[9px] font-black hover:bg-emerald-700 transition-colors leading-none"
-                                    title="Frontier flights"
-                                  >
-                                    F
-                                  </a>
-                                </span>
-                              ))}
-                              {airports.length > 1 && (
-                                <a
-                                  href={`/flights?${airports.map((apt) => `to=${apt.code}`).join("&")}${nearestUserAirport ? `&from=${nearestUserAirport}` : ""}&date=${date}`}
-                                  className="inline-flex items-center justify-center w-5 h-5 rounded bg-emerald-700 text-white text-[9px] font-black hover:bg-emerald-800 transition-colors leading-none"
-                                  title="Frontier flights – all airports"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  F
-                                </a>
-                              )}
-                            </div>
-                          )}
+                      </div>
+
+                      {/* Plan route button */}
+                      {userLocation && event.lat != null && event.est_time ? (
+                        <a
+                          href={`/take-me?originLat=${userLocation.lat}&originLng=${userLocation.lng}&venue=${encodeURIComponent(event.venue)}&venueLat=${event.lat}&venueLng=${event.lng}&date=${date}&time=${event.est_time}&game=${encodeURIComponent(event.name)}`}
+                          className="mt-3 flex items-center justify-center gap-2 w-full py-2 rounded font-mono text-sm font-semibold border border-[--primary] text-[--primary] hover:bg-[--primary]/10 transition-colors press-scale"
+                        >
+                          <Navigation className="size-4" /> PLAN ROUTE
+                        </a>
+                      ) : (
+                        <div className="mt-3 flex items-center justify-center gap-2 w-full py-2 rounded font-mono text-[11px] text-[--color-dim] border border-white/5">
+                          SET LOCATION TO PLAN ROUTE
                         </div>
-                      </td>}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

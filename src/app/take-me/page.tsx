@@ -100,73 +100,91 @@ function modeIcon(mode: string) {
 function modeColor(mode: string): string {
   switch (mode) {
     case "flight":
-      return "text-violet-600";
+      return "text-[--color-flight]";
     case "drive":
     case "rideshare":
-      return "text-gray-600";
+      return "text-[--color-drive]";
     case "bus":
-      return "text-green-600";
+      return "text-[--color-bus]";
     case "train":
-      return "text-blue-600";
+      return "text-[--color-train]";
     case "transit":
-      return "text-teal-600";
+      return "text-[--color-transit]";
     default:
-      return "text-gray-500";
+      return "text-[--color-dim]";
   }
 }
 
 function modeBgColor(mode: string): string {
   switch (mode) {
     case "flight":
-      return "bg-violet-50 text-violet-700";
+      return "bg-[--color-flight]/10 text-[--color-flight]";
     case "drive":
     case "rideshare":
-      return "bg-gray-100 text-gray-700";
+      return "bg-[--color-drive]/10 text-[--color-drive]";
     case "bus":
-      return "bg-green-50 text-green-700";
+      return "bg-[--color-bus]/10 text-[--color-bus]";
     case "train":
-      return "bg-blue-50 text-blue-700";
+      return "bg-[--color-train]/10 text-[--color-train]";
     case "transit":
-      return "bg-teal-50 text-teal-700";
+      return "bg-[--color-transit]/10 text-[--color-transit]";
     default:
-      return "bg-gray-50 text-gray-600";
+      return "bg-white/5 text-[--color-dim]";
+  }
+}
+
+function modeBorderColor(mode: string): string {
+  switch (mode) {
+    case "flight":
+      return "border-l-[--color-flight]";
+    case "drive":
+    case "rideshare":
+      return "border-l-[--color-drive]";
+    case "bus":
+      return "border-l-[--color-bus]";
+    case "train":
+      return "border-l-[--color-train]";
+    case "transit":
+      return "border-l-[--color-transit]";
+    default:
+      return "border-l-[--color-dim]";
   }
 }
 
 function modeLabel(mode: string): string {
   switch (mode) {
     case "flight":
-      return "Flight";
+      return "FLY";
     case "drive":
-      return "Drive";
+      return "DRIVE";
     case "rideshare":
-      return "Drive";
+      return "DRIVE";
     case "bus":
-      return "Bus";
+      return "BUS";
     case "train":
-      return "Train";
+      return "TRAIN";
     case "transit":
-      return "Transit";
+      return "TRANSIT";
     default:
-      return mode;
+      return mode.toUpperCase();
   }
 }
 
 function modeMapColor(mode: string): string {
   switch (mode) {
     case "flight":
-      return "#7C3AED";
+      return "#a78bfa";
     case "drive":
     case "rideshare":
-      return "#6B7280";
+      return "#e2e8f0";
     case "bus":
-      return "#16A34A";
+      return "#34d399";
     case "train":
-      return "#2563EB";
+      return "#60a5fa";
     case "transit":
-      return "#0D9488";
+      return "#22d3ee";
     default:
-      return "#6B7280";
+      return "#e2e8f0";
   }
 }
 
@@ -214,8 +232,8 @@ export default function TakeMePageWrapper() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
-          <Loader2 className="size-8 animate-spin text-gray-400" />
+        <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+          <div className="w-8 h-8 border-2 border-[--primary]/30 border-t-[--primary] rounded-full animate-spin" />
         </div>
       }
     >
@@ -277,6 +295,7 @@ function TakeMePage() {
           disableDefaultUI: true,
           zoomControl: true,
           gestureHandling: "greedy",
+          colorScheme: "DARK",
         });
       }
       // Reverse-geocode initial location
@@ -463,6 +482,16 @@ function TakeMePage() {
     [enriching]
   );
 
+  // Auto-enrich when card expanded (500ms debounce)
+  useEffect(() => {
+    if (!expandedId) return;
+    const it = itineraries.find((i) => i.id === expandedId);
+    if (!it || enrichments[it.id] || enriching.has(it.id)) return;
+    if (!it.legs.some((l) => l.enrichable)) return;
+    const timer = setTimeout(() => enrichItinerary(it), 500);
+    return () => clearTimeout(timer);
+  }, [expandedId, itineraries, enrichments, enriching, enrichItinerary]);
+
   const toggleTransitSwap = useCallback((key: string) => {
     setSwappedToTransit((prev) => {
       const next = new Set(prev);
@@ -511,8 +540,18 @@ function TakeMePage() {
       bounds.extend(from);
       bounds.extend(to);
 
+      // Draw a subtle glow line underneath for all modes
+      const glowLine = new google.maps.Polyline({
+        path: [from, to],
+        geodesic: leg.mode === "flight",
+        strokeColor: color,
+        strokeWeight: 10,
+        strokeOpacity: 0.15,
+        map: mapRef.current,
+      });
+      overlaysRef.current.push(glowLine);
+
       if (leg.mode === "drive" || leg.mode === "rideshare") {
-        // Use Directions Service for road route polyline
         if (directionsServiceRef.current) {
           directionsServiceRef.current.route(
             {
@@ -524,22 +563,30 @@ function TakeMePage() {
               if (status === "OK" && result) {
                 const path = result.routes[0]?.overview_path;
                 if (path) {
+                  // Glow along road
+                  const roadGlow = new google.maps.Polyline({
+                    path,
+                    strokeColor: color,
+                    strokeWeight: 10,
+                    strokeOpacity: 0.15,
+                    map: mapRef.current,
+                  });
+                  overlaysRef.current.push(roadGlow);
                   const polyline = new google.maps.Polyline({
                     path,
                     strokeColor: color,
-                    strokeWeight: 5,
-                    strokeOpacity: 0.85,
+                    strokeWeight: 4,
+                    strokeOpacity: 0.9,
                     map: mapRef.current,
                   });
                   overlaysRef.current.push(polyline);
                 }
               } else {
-                // Fallback: straight line
                 const polyline = new google.maps.Polyline({
                   path: [from, to],
                   strokeColor: color,
                   strokeWeight: 4,
-                  strokeOpacity: 0.7,
+                  strokeOpacity: 0.8,
                   map: mapRef.current,
                 });
                 overlaysRef.current.push(polyline);
@@ -548,7 +595,6 @@ function TakeMePage() {
           );
         }
       } else if (leg.mode === "flight") {
-        // Geodesic arc for flights
         const polyline = new google.maps.Polyline({
           path: [from, to],
           geodesic: true,
@@ -559,58 +605,92 @@ function TakeMePage() {
             {
               icon: {
                 path: "M 0,-1 0,1",
-                strokeOpacity: 0.8,
+                strokeOpacity: 0.9,
                 strokeColor: color,
-                scale: 3,
+                scale: 4,
               },
               offset: "0",
-              repeat: "12px",
+              repeat: "14px",
             },
           ],
           map: mapRef.current,
         });
         overlaysRef.current.push(polyline);
       } else {
-        // Bus/train: solid polyline between stops
+        // Bus/train: solid colored polyline
         const polyline = new google.maps.Polyline({
           path: [from, to],
           strokeColor: color,
           strokeWeight: 5,
-          strokeOpacity: 0.85,
+          strokeOpacity: 0.9,
           map: mapRef.current,
         });
         overlaysRef.current.push(polyline);
       }
 
-      // Add leg start marker (small circle)
+      // Add glow ring behind marker
+      const glowMarker = new google.maps.Marker({
+        position: from,
+        map: mapRef.current,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 12,
+          fillColor: color,
+          fillOpacity: 0.2,
+          strokeColor: color,
+          strokeWeight: 0,
+        },
+        title: leg.from,
+        zIndex: 9,
+      });
+      overlaysRef.current.push(glowMarker);
+
+      // Add leg start marker (colored circle)
       const marker = new google.maps.Marker({
         position: from,
         map: mapRef.current,
         icon: {
           path: google.maps.SymbolPath.CIRCLE,
-          scale: 6,
+          scale: 7,
           fillColor: color,
           fillOpacity: 1,
-          strokeColor: "#fff",
-          strokeWeight: 2,
+          strokeColor: "#0a0a0f",
+          strokeWeight: 2.5,
         },
         title: leg.from,
         zIndex: 10,
       });
       overlaysRef.current.push(marker);
 
-      // Add end marker for last leg
+      // Add end marker for last leg (same mode color)
       if (li === it.legs.length - 1) {
+        const endColor = modeMapColor(leg.mode);
+        const endGlow = new google.maps.Marker({
+          position: to,
+          map: mapRef.current,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 16,
+            fillColor: endColor,
+            fillOpacity: 0.2,
+            strokeColor: endColor,
+            strokeWeight: 0,
+          },
+          title: leg.to,
+          zIndex: 10,
+        });
+        overlaysRef.current.push(endGlow);
+
         const endMarker = new google.maps.Marker({
           position: to,
           map: mapRef.current,
           icon: {
             path: google.maps.SymbolPath.CIRCLE,
-            scale: 8,
-            fillColor: "#111827",
+            scale: 9,
+            fillColor: endColor,
             fillOpacity: 1,
-            strokeColor: "#fff",
-            strokeWeight: 2,
+            strokeColor: "#0a0a0f",
+            strokeWeight: 2.5,
           },
           title: leg.to,
           zIndex: 11,
@@ -646,22 +726,22 @@ function TakeMePage() {
   ];
 
   return (
-    <div className="h-screen flex flex-col bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="h-screen flex flex-col bg-[#0a0a0f]">
       {/* Header */}
-      <header className="glass z-10 px-4 py-3 border-b border-gray-200 shrink-0">
+      <header className="panel z-10 px-4 py-3 border-b border-white/5 shrink-0">
         <div className="mx-auto">
           <div className="flex items-center gap-3">
             <Link
               href="/"
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              className="text-[--color-dim] hover:text-foreground transition-colors"
             >
               <ArrowLeft className="size-5" />
             </Link>
             <div className="flex-1 min-w-0">
-              <h1 className="text-base font-semibold text-gray-900 truncate">
+              <h1 className="text-base font-semibold text-foreground truncate">
                 {gameDisplay}
               </h1>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs font-mono text-[--color-dim]">
                 {dateDisplay} {timeDisplay && `· ${timeDisplay} EST`}{" "}
                 {venue && `· ${venue}`}
               </p>
@@ -670,8 +750,8 @@ function TakeMePage() {
           {/* Editable origin */}
           <div className="mt-2 relative">
             <div className="flex items-center gap-2">
-              <MapPin className="size-3.5 text-gray-400 shrink-0" />
-              <span className="text-xs text-gray-400 shrink-0">From:</span>
+              <MapPin className="size-3.5 text-[--color-dim] shrink-0" />
+              <span className="text-xs font-mono text-[--color-dim] shrink-0">FROM:</span>
               <form
                 className="flex-1 flex items-center gap-1.5"
                 onSubmit={(e) => {
@@ -713,24 +793,24 @@ function TakeMePage() {
                     setTimeout(() => setOriginSuggestions([]), 200);
                   }}
                   placeholder="Enter city or address"
-                  className="flex-1 text-xs bg-white/60 border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300 placeholder:text-gray-400"
+                  className="flex-1 text-xs font-mono bg-white/5 border border-white/8 rounded px-2.5 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-[--primary]/50 placeholder:text-[--color-dim]"
                 />
                 <button
                   type="submit"
                   disabled={originLoading || !originInput.trim()}
-                  className="px-2.5 py-1.5 rounded-lg bg-gray-800 text-white text-xs font-medium hover:bg-gray-700 disabled:opacity-40 transition-colors"
+                  className="px-2.5 py-1.5 rounded bg-[--primary] text-[--primary-foreground] text-xs font-mono font-semibold hover:opacity-90 disabled:opacity-40 transition-colors"
                 >
                   {originLoading ? (
                     <Loader2 className="size-3 animate-spin" />
                   ) : (
-                    "Go"
+                    "GO"
                   )}
                 </button>
               </form>
             </div>
             {/* Autocomplete suggestions dropdown */}
             {originSuggestions.length > 0 && (
-              <div className="absolute left-0 right-0 top-full mt-1 bg-white rounded-xl border border-gray-200 shadow-lg z-50 overflow-hidden">
+              <div className="absolute left-0 right-0 top-full mt-1 panel-elevated rounded-lg z-50 overflow-hidden">
                 {originSuggestions.map((s, i) => (
                   <button
                     key={s.placeId}
@@ -738,12 +818,12 @@ function TakeMePage() {
                     onClick={() => selectOriginSuggestion(s)}
                     className={`w-full text-left px-3 py-2 text-xs transition-colors ${
                       i === sugIdx
-                        ? "bg-blue-50 text-blue-700"
-                        : "text-gray-700 hover:bg-gray-50"
+                        ? "bg-[--primary]/10 text-[--primary]"
+                        : "text-foreground hover:bg-white/5"
                     }`}
                   >
                     <div className="font-medium">{s.main}</div>
-                    <div className="text-[10px] text-gray-400">{s.secondary}</div>
+                    <div className="text-[10px] text-[--color-dim]">{s.secondary}</div>
                   </button>
                 ))}
               </div>
@@ -753,23 +833,23 @@ function TakeMePage() {
       </header>
 
       {/* 50/50 split: map + itinerary */}
-      <div className="flex flex-1 min-h-0">
-        {/* Left: Map */}
-        <div className="w-1/2 relative">
+      <div className="flex flex-col md:flex-row flex-1 min-h-0">
+        {/* Map */}
+        <div className="h-[40vh] md:h-auto md:w-1/2 relative">
           <div ref={mapContainerRef} className="absolute inset-0" />
         </div>
 
-        {/* Right: Itinerary list */}
-        <div className="w-1/2 overflow-y-auto">
+        {/* Itinerary list */}
+        <div className="flex-1 md:w-1/2 overflow-y-auto">
 
       {/* Mode filter bar */}
       <div className="px-4 pt-3 pb-1 flex items-center gap-2">
-        <span className="text-xs text-gray-400 mr-1">Prefer:</span>
+        <span className="text-[10px] font-mono tracking-widest text-[--color-dim] mr-1">MODE:</span>
         {(
           [
-            ["all", "All", null],
-            ["bus", "Bus", Bus],
-            ["train", "Train", TrainFront],
+            ["all", "ALL", null],
+            ["bus", "BUS", Bus],
+            ["train", "TRAIN", TrainFront],
           ] as [
             "all" | "bus" | "train",
             string,
@@ -779,14 +859,14 @@ function TakeMePage() {
           <button
             key={key}
             onClick={() => setTransitPref(key)}
-            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded text-[10px] font-mono font-semibold tracking-wider transition-colors ${
               transitPref === key
                 ? key === "bus"
-                  ? "bg-green-100 text-green-700"
+                  ? "bg-[--color-bus]/10 text-[--color-bus] border border-[--color-bus]/30"
                   : key === "train"
-                    ? "bg-blue-100 text-blue-700"
-                    : "bg-gray-200 text-gray-800"
-                : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                    ? "bg-[--color-train]/10 text-[--color-train] border border-[--color-train]/30"
+                    : "bg-white/5 text-foreground border border-white/10"
+                : "text-[--color-dim] hover:text-foreground border border-transparent hover:border-white/5"
             }`}
           >
             {Icon && <Icon className="size-3" />}
@@ -798,25 +878,25 @@ function TakeMePage() {
       {/* Results */}
       <main className="px-4 py-4">
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 text-gray-400">
-            <Loader2 className="size-8 animate-spin mb-3" />
-            <p className="text-sm">Finding routes...</p>
+          <div className="flex flex-col items-center justify-center py-20 text-[--color-dim]">
+            <div className="w-8 h-8 border-2 border-[--primary]/30 border-t-[--primary] rounded-full animate-spin mb-3" />
+            <p className="text-sm font-mono tracking-widest">FINDING ROUTES...</p>
           </div>
         ) : error ? (
           <div className="text-center py-20">
-            <p className="text-red-500 text-sm">{error}</p>
+            <p className="text-[--color-danger] text-sm font-mono">{error}</p>
             <button
               onClick={fetchItineraries}
-              className="mt-3 text-xs text-gray-500 hover:text-gray-700 underline"
+              className="mt-3 text-xs font-mono text-[--color-dim] hover:text-foreground underline"
             >
-              Retry
+              RETRY
             </button>
           </div>
         ) : itineraries.length === 0 ? (
-          <div className="text-center py-20 text-gray-400">
+          <div className="text-center py-20 text-[--color-dim]">
             <Navigation className="size-8 mx-auto mb-3" />
-            <p className="text-sm">No routes found</p>
-            <p className="text-xs mt-1">
+            <p className="text-sm font-mono">NO ROUTES FOUND</p>
+            <p className="text-xs mt-1 font-mono">
               No bus, train, or drive options available for this game
             </p>
           </div>
@@ -828,10 +908,34 @@ function TakeMePage() {
               const itEnrichments = enrichments[it.id];
               const isEnriching = enriching.has(it.id);
 
+              // Compute enriched totals for collapsed header
+              let displayTotalMinutes = it.totalMinutes;
+              let displayArrivalTime = it.arrivalTime;
+              let displayTotalCost = it.totalCost;
+              if (itEnrichments) {
+                let minutesDelta = 0;
+                it.legs.forEach((leg, i) => {
+                  const ed = itEnrichments[i];
+                  if (ed) {
+                    const sk = `${it.id}:${i}`;
+                    const sw = swappedToTransit.has(sk);
+                    const newMin =
+                      sw && ed.transitMinutes != null
+                        ? ed.transitMinutes
+                        : ed.driveMinutes;
+                    minutesDelta += newMin - leg.minutes;
+                  }
+                });
+                displayTotalMinutes = Math.max(0, it.totalMinutes + minutesDelta);
+                displayArrivalTime = new Date(
+                  new Date(it.departureTime).getTime() + displayTotalMinutes * 60000
+                ).toISOString();
+              }
+
               return (
                 <div
                   key={it.id}
-                  className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:border-gray-300 transition-colors"
+                  className={`panel rounded overflow-hidden transition-colors border-l-2 ${modeBorderColor(mainModes.find((m) => m !== "drive") ?? mainModes[0] ?? "drive")}`}
                 >
                   {/* Collapsed header */}
                   <button
@@ -852,20 +956,20 @@ function TakeMePage() {
 
                       {/* Times */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 text-sm font-medium text-gray-900">
+                        <div className="flex items-center gap-1.5 text-sm font-mono font-medium text-foreground">
                           <span>{formatTime(it.departureTime)}</span>
-                          <ArrowRight className="size-3 text-gray-400" />
-                          <span>{formatTime(it.arrivalTime)}</span>
+                          <ArrowRight className="size-3 text-[--color-dim]" />
+                          <span>{formatTime(displayArrivalTime)}</span>
                         </div>
-                        <div className="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
-                          <span>{formatDuration(it.totalMinutes)}</span>
+                        <div className="flex items-center gap-2 text-xs font-mono text-[--color-dim] mt-0.5">
+                          <span>{formatDuration(displayTotalMinutes)}</span>
                           <span>·</span>
                           {it.totalCost != null ? (
-                            <span className="text-emerald-600 font-medium">
+                            <span className="text-[--color-price] font-semibold">
                               ~${it.totalCost}
                             </span>
                           ) : (
-                            <span className="text-gray-400">--</span>
+                            <span>--</span>
                           )}
                           {it.legs.length > 1 && (
                             <>
@@ -889,11 +993,11 @@ function TakeMePage() {
                               </span>
                             </>
                           )}
-                          {!it.enriched && it.legs.some((l) => l.enrichable) && (
+                          {!it.enriched && !itEnrichments && it.legs.some((l) => l.enrichable) && (
                             <>
                               <span>·</span>
-                              <span className="text-amber-500 text-[10px]">
-                                estimate
+                              <span className="text-[#facc15] text-[10px] font-mono">
+                                ESTIMATE
                               </span>
                             </>
                           )}
@@ -913,16 +1017,16 @@ function TakeMePage() {
                       </div>
 
                       {isExpanded ? (
-                        <ChevronUp className="size-4 text-gray-400" />
+                        <ChevronUp className="size-4 text-[--color-dim]" />
                       ) : (
-                        <ChevronDown className="size-4 text-gray-400" />
+                        <ChevronDown className="size-4 text-[--color-dim]" />
                       )}
                     </div>
                   </button>
 
                   {/* Expanded timeline */}
                   {isExpanded && (
-                    <div className="px-4 pb-4 border-t border-gray-100">
+                    <div className="px-4 pb-4 border-t border-white/5">
                       {/* Enrich button */}
                       {!itEnrichments &&
                         it.legs.some((l) => l.enrichable) && (
@@ -932,7 +1036,7 @@ function TakeMePage() {
                               enrichItinerary(it);
                             }}
                             disabled={isEnriching}
-                            className="mt-3 mb-1 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 text-amber-700 text-xs font-medium hover:bg-amber-100 transition-colors disabled:opacity-50"
+                            className="mt-3 mb-1 flex items-center gap-1.5 w-full px-3 py-2 rounded border border-[--primary]/30 text-[--primary] text-xs font-mono font-semibold hover:bg-[--primary]/10 transition-colors disabled:opacity-50"
                           >
                             {isEnriching ? (
                               <Loader2 className="size-3 animate-spin" />
@@ -940,14 +1044,14 @@ function TakeMePage() {
                               <Zap className="size-3" />
                             )}
                             {isEnriching
-                              ? "Getting real times..."
-                              : "Get real driving times & prices"}
+                              ? "GETTING REAL TIMES..."
+                              : "ENRICH WITH LIVE DATA"}
                           </button>
                         )}
                       {itEnrichments && (
-                        <div className="mt-3 mb-1 flex items-center gap-1.5 text-xs text-emerald-600">
+                        <div className="mt-3 mb-1 flex items-center gap-1.5 text-xs font-mono text-[--color-live]">
                           <Zap className="size-3" />
-                          <span>Enriched with real Google Maps data</span>
+                          <span>ENRICHED WITH LIVE DATA</span>
                         </div>
                       )}
 
@@ -982,7 +1086,7 @@ function TakeMePage() {
                             <div key={i}>
                               {/* Transfer gap / layover */}
                               {gap > 5 && (
-                                <div className="flex items-center gap-2 py-1.5 pl-6 text-xs text-amber-600">
+                                <div className="flex items-center gap-2 py-1.5 pl-6 text-xs font-mono text-[#facc15]">
                                   <Clock className="size-3" />
                                   <span>
                                     {formatDuration(gap)} layover at{" "}
@@ -996,16 +1100,13 @@ function TakeMePage() {
                                 {/* Timeline line */}
                                 <div className="flex flex-col items-center w-5">
                                   <div
-                                    className={`w-2 h-2 rounded-full ${
-                                      displayMode === "rideshare"
-                                        ? "bg-gray-300"
-                                        : modeColor(displayMode).replace(
-                                            "text-",
-                                            "bg-"
-                                          )
-                                    }`}
+                                    className="w-3 h-3 rounded-full ring-2 ring-black/30"
+                                    style={{ background: modeMapColor(displayMode) }}
                                   />
-                                  <div className="flex-1 w-0.5 bg-gray-200" />
+                                  <div
+                                    className="flex-1 w-0.5 rounded-full"
+                                    style={{ background: modeMapColor(displayMode), opacity: 0.4 }}
+                                  />
                                 </div>
 
                                 {/* Leg details */}
@@ -1014,33 +1115,31 @@ function TakeMePage() {
                                     <span className={modeColor(displayMode)}>
                                       {modeIcon(displayMode)}
                                     </span>
-                                    <span className="text-sm font-medium text-gray-900">
+                                    <span className="text-sm font-medium font-mono text-foreground">
                                       {leg.carrier || modeLabel(displayMode)}
                                       {leg.routeName && (
-                                        <span className="text-gray-500 ml-1">
+                                        <span className="text-[--color-dim] ml-1">
                                           {leg.routeName}
                                         </span>
                                       )}
                                     </span>
                                     {enrichData && !isSwapped && (
-                                      <span className="text-[10px] text-emerald-500">
-                                        (live)
+                                      <span className="text-[10px] font-mono text-[--color-live]">
+                                        (LIVE)
                                       </span>
                                     )}
                                     {isSwapped && (
-                                      <span className="text-[10px] text-teal-500">
-                                        (transit)
+                                      <span className="text-[10px] font-mono text-[--color-transit]">
+                                        (TRANSIT)
                                       </span>
                                     )}
                                   </div>
 
-                                  <div className="mt-1 text-xs text-gray-500 space-y-0.5">
+                                  <div className="mt-1 text-xs font-mono text-[--color-dim] space-y-0.5">
                                     <div className="flex items-center gap-1">
                                       <MapPin className="size-3" />
                                       <span>{leg.from}</span>
-                                      <span className="text-gray-400">
-                                        →
-                                      </span>
+                                      <span>→</span>
                                       <span>{leg.to}</span>
                                     </div>
                                     <div className="flex items-center gap-2">
@@ -1058,8 +1157,8 @@ function TakeMePage() {
                                           {enrichData.uberEstimate && (
                                             <>
                                               <span>·</span>
-                                              <span className="text-gray-600">
-                                                Uber{" "}
+                                              <span className="text-white/70">
+                                                UBER{" "}
                                                 {enrichData.uberEstimate}
                                               </span>
                                             </>
@@ -1067,8 +1166,8 @@ function TakeMePage() {
                                           {enrichData.lyftEstimate && (
                                             <>
                                               <span>·</span>
-                                              <span className="text-pink-500">
-                                                Lyft{" "}
+                                              <span className="text-[--color-lyft]/70">
+                                                LYFT{" "}
                                                 {enrichData.lyftEstimate}
                                               </span>
                                             </>
@@ -1079,7 +1178,7 @@ function TakeMePage() {
                                         enrichData?.transitFare && (
                                           <>
                                             <span>·</span>
-                                            <span className="text-emerald-600">
+                                            <span className="text-[--color-price]">
                                               {enrichData.transitFare}
                                             </span>
                                           </>
@@ -1089,7 +1188,7 @@ function TakeMePage() {
                                         leg.cost > 0 && (
                                           <>
                                             <span>·</span>
-                                            <span className="text-emerald-600">
+                                            <span className="text-[--color-price]">
                                               ~${leg.cost}
                                             </span>
                                           </>
@@ -1104,7 +1203,7 @@ function TakeMePage() {
                                   </div>
 
                                   {/* Action buttons */}
-                                  <div className="flex gap-1.5 mt-1.5 flex-wrap">
+                                  <div className="flex gap-1.5 mt-1.5 flex-col sm:flex-row flex-wrap">
                                     {(displayMode === "drive" ||
                                       displayMode === "rideshare") && (
                                       <>
@@ -1119,12 +1218,12 @@ function TakeMePage() {
                                           )}
                                           target="_blank"
                                           rel="noopener noreferrer"
-                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-black text-white hover:opacity-80 transition-opacity"
+                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono font-semibold bg-[#191919] text-white border border-white/10 hover:bg-[#2a2a2a] transition-colors"
                                           onClick={(e) =>
                                             e.stopPropagation()
                                           }
                                         >
-                                          Uber{" "}
+                                          UBER{" "}
                                           <ArrowRight className="size-3" />
                                         </a>
                                         <a
@@ -1136,12 +1235,12 @@ function TakeMePage() {
                                           )}
                                           target="_blank"
                                           rel="noopener noreferrer"
-                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-pink-600 text-white hover:opacity-80 transition-opacity"
+                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono font-semibold bg-[#d4004c] text-white hover:bg-[#e0105a] transition-colors"
                                           onClick={(e) =>
                                             e.stopPropagation()
                                           }
                                         >
-                                          Lyft{" "}
+                                          LYFT{" "}
                                           <ArrowRight className="size-3" />
                                         </a>
                                         <a
@@ -1151,12 +1250,12 @@ function TakeMePage() {
                                           }
                                           target="_blank"
                                           rel="noopener noreferrer"
-                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 hover:opacity-80 transition-opacity"
+                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono font-semibold border border-white/10 text-[--color-dim] hover:text-foreground transition-colors"
                                           onClick={(e) =>
                                             e.stopPropagation()
                                           }
                                         >
-                                          Drive{" "}
+                                          DRIVE{" "}
                                           <ArrowRight className="size-3" />
                                         </a>
                                         {/* Swap to transit button */}
@@ -1167,7 +1266,7 @@ function TakeMePage() {
                                               e.stopPropagation();
                                               toggleTransitSwap(swapKey);
                                             }}
-                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-teal-50 text-teal-700 hover:bg-teal-100 transition-colors"
+                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-[--color-transit]/10 text-[--color-transit] hover:bg-[--color-transit]/20 transition-colors"
                                           >
                                             <ArrowLeftRight className="size-3" />
                                             {isSwapped
@@ -1184,12 +1283,12 @@ function TakeMePage() {
                                             href={`https://www.google.com/maps/dir/?api=1&origin=${leg.fromLat},${leg.fromLng}&destination=${leg.toLat},${leg.toLng}&travelmode=transit`}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-teal-50 text-teal-700 hover:opacity-80 transition-opacity"
+                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-[--color-transit]/10 text-[--color-transit] hover:opacity-80 transition-opacity"
                                             onClick={(e) =>
                                               e.stopPropagation()
                                             }
                                           >
-                                            Directions{" "}
+                                            DIRECTIONS{" "}
                                             <ArrowRight className="size-3" />
                                           </a>
                                           <button
@@ -1197,7 +1296,7 @@ function TakeMePage() {
                                               e.stopPropagation();
                                               toggleTransitSwap(swapKey);
                                             }}
-                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border border-white/10 text-[--color-dim] hover:text-foreground transition-colors"
                                           >
                                             <ArrowLeftRight className="size-3" />
                                             {`Back to drive (${formatDuration(enrichData!.driveMinutes)}${enrichData!.uberEstimate ? `, ~${enrichData!.uberEstimate}` : ""})`}
@@ -1217,7 +1316,7 @@ function TakeMePage() {
                                               e.stopPropagation()
                                             }
                                           >
-                                            Book{" "}
+                                            BOOK{" "}
                                             <ArrowRight className="size-3" />
                                           </a>
                                         )}
@@ -1232,7 +1331,7 @@ function TakeMePage() {
                                           }
                                           target="_blank"
                                           rel="noopener noreferrer"
-                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-teal-50 text-teal-700 hover:opacity-80 transition-opacity"
+                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-[--color-transit]/10 text-[--color-transit] hover:opacity-80 transition-opacity"
                                           onClick={(e) =>
                                             e.stopPropagation()
                                           }
@@ -1248,12 +1347,12 @@ function TakeMePage() {
                                             href={leg.bookingUrl}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-violet-50 text-violet-700 hover:opacity-80 transition-opacity"
+                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-[--color-flight]/10 text-[--color-flight] border border-[--color-flight]/30 hover:opacity-80 transition-opacity"
                                             onClick={(e) =>
                                               e.stopPropagation()
                                             }
                                           >
-                                            Flights{" "}
+                                            FLIGHTS{" "}
                                             <ArrowRight className="size-3" />
                                           </a>
                                         )}
@@ -1269,11 +1368,17 @@ function TakeMePage() {
                         {/* Arrival */}
                         <div className="flex gap-3 py-2">
                           <div className="flex flex-col items-center w-5">
-                            <div className="w-2 h-2 rounded-full bg-gray-900" />
+                            <div
+                              className="w-3 h-3 rounded-full ring-2 ring-black/30"
+                              style={{ background: modeMapColor(it.legs[it.legs.length - 1]?.mode ?? "drive") }}
+                            />
                           </div>
-                          <div className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                          <div
+                            className="text-sm font-mono font-medium flex items-center gap-2"
+                            style={{ color: modeMapColor(it.legs[it.legs.length - 1]?.mode ?? "drive") }}
+                          >
                             <MapPin className="size-4" />
-                            Arrive at {venue}
+                            ARRIVE AT {venue.toUpperCase()}
                           </div>
                         </div>
                       </div>
@@ -1284,9 +1389,9 @@ function TakeMePage() {
             })}
             <button
               onClick={() => setResultLimit((l) => l + 10)}
-              className="w-full mt-3 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors"
+              className="w-full mt-3 py-2.5 rounded border border-white/10 font-mono text-sm font-semibold text-[--color-dim] hover:text-foreground hover:border-white/20 transition-colors"
             >
-              Show More Routes
+              SHOW MORE ROUTES
             </button>
           </div>
         )}

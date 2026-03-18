@@ -142,7 +142,7 @@ export function DateSelector({
             {formatDateMono(currentDate)}
           </div>
           <div className="text-[10px] font-mono text-[--primary] leading-tight tracking-widest uppercase">
-            {gameCount} OPS
+            {gameCount} GAMES
           </div>
         </button>
 

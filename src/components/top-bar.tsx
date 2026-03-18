@@ -35,9 +35,9 @@ export function TopBar({
             onLocationChange={onLocationChange}
           />
         </div>
-        {/* Search */}
+        {/* Search (games + city) */}
         <div className="flex-1 min-w-0 border-b sm:border-b-0 sm:border-r border-white/5">
-          <SearchBar value={search} onChange={onSearchChange} />
+          <SearchBar value={search} onChange={onSearchChange} onLocationChange={onLocationChange} />
         </div>
         {/* Date */}
         <div className="shrink-0">
