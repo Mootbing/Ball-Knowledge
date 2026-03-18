@@ -78,6 +78,13 @@ function lyftDeepLink(fromLat: number, fromLng: number, toLat: number, toLng: nu
   return `https://lyft.com/ride?pickup[latitude]=${fromLat}&pickup[longitude]=${fromLng}&destination[latitude]=${toLat}&destination[longitude]=${toLng}`;
 }
 
+function extractUpperBound(estimate: string): string {
+  // e.g. "$18-24" → "$24", "$18–$24" → "$24", "$24" → "$24"
+  const parts = estimate.split(/[-–]/);
+  const last = parts[parts.length - 1].trim();
+  return last.startsWith("$") ? last : `$${last.replace(/[^0-9.]/g, "")}`;
+}
+
 function haversineMiles(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const toRad = (d: number) => (d * Math.PI) / 180;
   const R = 3958.8;
@@ -163,25 +170,25 @@ function TransitCards({
             {/* Transport options */}
             {times ? (
               <div className="flex flex-col gap-0.5 mt-0.5 text-[10px]">
-                <a
-                  href={gmapsUrl(vLat, vLng, stop.lat, stop.lng, "driving")}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[--color-dim] hover:text-foreground border border-white/10 no-underline"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Car className="size-3" /> {formatDriveTime(times.driveMinutes)}
-                </a>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 flex-wrap">
+                  <a
+                    href={gmapsUrl(vLat, vLng, stop.lat, stop.lng, "driving")}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[--color-dim] hover:text-foreground border border-white/10 no-underline"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Car className="size-3" /> {formatDriveTime(times.driveMinutes)}
+                  </a>
                   {times.uberEstimate && (
                     <a
                       href={uberDeepLink(vLat, vLng, stop.lat, stop.lng)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 bg-[#191919] text-white font-semibold hover:bg-[#2a2a2a] transition-colors no-underline border border-white/10"
+                      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 bg-[#191919] text-[--color-price] font-semibold hover:bg-[#2a2a2a] transition-colors no-underline border border-white/10"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      UBER {times.uberEstimate}
+                      UBER ~&lt;{extractUpperBound(times.uberEstimate)}
                     </a>
                   )}
                   {times.lyftEstimate && (
@@ -189,10 +196,10 @@ function TransitCards({
                       href={lyftDeepLink(vLat, vLng, stop.lat, stop.lng)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 bg-[#d4004c] text-white font-semibold hover:bg-[#e0105a] transition-colors no-underline"
+                      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 bg-[#d4004c] text-[--color-price] font-semibold hover:bg-[#e0105a] transition-colors no-underline"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      LYFT {times.lyftEstimate}
+                      LYFT ~&lt;{extractUpperBound(times.lyftEstimate)}
                     </a>
                   )}
                 </div>
@@ -478,7 +485,7 @@ export function BottomTray({
 
         {/* Column headers — clickable to sort */}
         {trayState !== "collapsed" && (
-          <div className="px-3 py-1.5 border-b border-white/5">
+          <div className="px-6 py-1.5 border-b border-white/5">
             <div className="flex items-center gap-2.5 text-[9px] font-mono tracking-widest uppercase">
               <span onClick={() => handleHeaderSort("price")} className={`shrink-0 min-w-[2.5rem] cursor-pointer hover:text-foreground transition-colors ${sortKey === "price" ? "text-foreground" : "text-[--color-dim]"}`}>
                 TICKET{sortKey === "price" ? (sortDir === "asc" ? " ↑" : " ↓") : ""}

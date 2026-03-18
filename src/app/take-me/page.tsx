@@ -170,6 +170,12 @@ function modeLabel(mode: string): string {
   }
 }
 
+function extractUpperBound(estimate: string): string {
+  const parts = estimate.split(/[-–]/);
+  const last = parts[parts.length - 1].trim();
+  return last.startsWith("$") ? last : `$${last.replace(/[^0-9.]/g, "")}`;
+}
+
 function modeMapColor(mode: string): string {
   switch (mode) {
     case "flight":
@@ -945,11 +951,11 @@ function TakeMePage() {
                     }
                   >
                     <div className="flex items-center gap-3">
-                      {/* Mode icons */}
-                      <div className="flex items-center gap-1">
-                        {mainModes.map((mode, i) => (
-                          <span key={i} className={`${modeColor(mode)}`}>
-                            {modeIcon(mode)}
+                      {/* Leg icons — one per leg */}
+                      <div className="flex items-center gap-0.5">
+                        {it.legs.map((leg, i) => (
+                          <span key={i} className={`${modeColor(leg.mode === "rideshare" ? "drive" : leg.mode)}`}>
+                            {modeIcon(leg.mode)}
                           </span>
                         ))}
                       </div>
@@ -966,10 +972,10 @@ function TakeMePage() {
                           <span>·</span>
                           {it.totalCost != null ? (
                             <span className="text-[--color-price] font-semibold">
-                              ~${it.totalCost}
+                              ~&lt;${it.totalCost}
                             </span>
                           ) : (
-                            <span>--</span>
+                            <span className="text-[--color-dim] italic">est</span>
                           )}
                           {it.legs.length > 1 && (
                             <>
@@ -1002,18 +1008,6 @@ function TakeMePage() {
                             </>
                           )}
                         </div>
-                      </div>
-
-                      {/* Mode badges */}
-                      <div className="flex gap-1 flex-wrap">
-                        {mainModes.map((mode, i) => (
-                          <span
-                            key={i}
-                            className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${modeBgColor(mode)}`}
-                          >
-                            {modeLabel(mode)}
-                          </span>
-                        ))}
                       </div>
 
                       {isExpanded ? (
@@ -1082,6 +1076,33 @@ function TakeMePage() {
                                 ? enrichData.transitMinutes
                                 : leg.minutes;
 
+                          // Compute display times: when swapped to transit,
+                          // arrive by next leg's departure or depart after previous leg's arrival
+                          let displayDepart = leg.depart;
+                          let displayArrive = leg.arrive;
+                          if (isSwapped && enrichData?.transitMinutes != null) {
+                            const nextLeg = i < it.legs.length - 1 ? it.legs[i + 1] : null;
+                            const prevLeg = i > 0 ? it.legs[i - 1] : null;
+                            if (nextLeg) {
+                              // Must arrive by next leg's departure
+                              const arriveBy = new Date(nextLeg.depart).getTime();
+                              displayArrive = new Date(arriveBy).toISOString();
+                              displayDepart = new Date(arriveBy - enrichData.transitMinutes * 60000).toISOString();
+                            } else if (prevLeg) {
+                              // Depart after previous leg's arrival
+                              const departAfter = new Date(prevLeg.arrive).getTime();
+                              displayDepart = new Date(departAfter).toISOString();
+                              displayArrive = new Date(departAfter + enrichData.transitMinutes * 60000).toISOString();
+                            } else {
+                              // No adjacent legs, keep original depart, adjust arrive
+                              displayDepart = leg.depart;
+                              displayArrive = new Date(new Date(leg.depart).getTime() + enrichData.transitMinutes * 60000).toISOString();
+                            }
+                          } else if (enrichData && !isSwapped) {
+                            // Enriched drive: adjust arrive based on live drive time
+                            displayArrive = new Date(new Date(leg.depart).getTime() + enrichData.driveMinutes * 60000).toISOString();
+                          }
+
                           return (
                             <div key={i}>
                               {/* Transfer gap / layover */}
@@ -1144,8 +1165,8 @@ function TakeMePage() {
                                     </div>
                                     <div className="flex items-center gap-2">
                                       <span>
-                                        {formatTime(leg.depart)} →{" "}
-                                        {formatTime(leg.arrive)}
+                                        {formatTime(displayDepart)} →{" "}
+                                        {formatTime(displayArrive)}
                                       </span>
                                       <span>·</span>
                                       <span>
@@ -1157,18 +1178,16 @@ function TakeMePage() {
                                           {enrichData.uberEstimate && (
                                             <>
                                               <span>·</span>
-                                              <span className="text-white/70">
-                                                UBER{" "}
-                                                {enrichData.uberEstimate}
+                                              <span className="text-[--color-price]">
+                                                UBER ~&lt;{extractUpperBound(enrichData.uberEstimate)}
                                               </span>
                                             </>
                                           )}
                                           {enrichData.lyftEstimate && (
                                             <>
                                               <span>·</span>
-                                              <span className="text-[--color-lyft]/70">
-                                                LYFT{" "}
-                                                {enrichData.lyftEstimate}
+                                              <span className="text-[--color-price]">
+                                                LYFT ~&lt;{extractUpperBound(enrichData.lyftEstimate)}
                                               </span>
                                             </>
                                           )}
