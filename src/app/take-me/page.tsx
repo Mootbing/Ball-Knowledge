@@ -993,15 +993,17 @@ function TakeMePage() {
                           <span>{formatTime(it.departureTime)}</span>
                           <ArrowRight className="size-3 text-[--color-dim]" />
                           <span>{formatTime(displayArrivalTime)}</span>
+                          {!it.enriched && !itEnrichments && it.legs.some((l) => l.enrichable) && (
+                            <span className="text-[#facc15] text-[10px] font-mono">
+                              (ESTIMATE)
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-2 text-xs font-mono text-[--color-dim] mt-0.5">
-                          <span>
-                            {formatDuration(displayTotalMinutes)}
-                            {" ("}
-                            <span className="text-emerald-400 font-semibold">
-                              ~&lt;${displayTotalCost ?? it.totalCost ?? it.legs.reduce((s, l) => s + (l.cost ?? 0), 0)}
-                            </span>
-                            {")"}
+                          <span>{formatDuration(displayTotalMinutes)}</span>
+                          <span>·</span>
+                          <span className="text-emerald-400 font-semibold">
+                            ~&lt;${displayTotalCost ?? it.totalCost ?? it.legs.reduce((s, l) => s + (l.cost ?? 0), 0)}
                           </span>
                           {it.legs.length > 1 && (
                             <>
@@ -1022,14 +1024,6 @@ function TakeMePage() {
                                 ).length !== 1
                                   ? "s"
                                   : ""}
-                              </span>
-                            </>
-                          )}
-                          {!it.enriched && !itEnrichments && it.legs.some((l) => l.enrichable) && (
-                            <>
-                              <span>·</span>
-                              <span className="text-[#facc15] text-[10px] font-mono">
-                                ESTIMATE
                               </span>
                             </>
                           )}
