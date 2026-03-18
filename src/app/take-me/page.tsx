@@ -1179,16 +1179,18 @@ function TakeMePage() {
                                           {enrichData.uberEstimate && (
                                             <>
                                               <span>·</span>
-                                              <span className="text-emerald-400">
-                                                UBER ~&lt;{extractUpperBound(enrichData.uberEstimate)}
+                                              <span>
+                                                <span className="text-white">UBER</span>{" "}
+                                                <span className="text-emerald-400">~&lt;{extractUpperBound(enrichData.uberEstimate)}</span>
                                               </span>
                                             </>
                                           )}
                                           {enrichData.lyftEstimate && (
                                             <>
                                               <span>·</span>
-                                              <span className="text-emerald-400">
-                                                LYFT ~&lt;{extractUpperBound(enrichData.lyftEstimate)}
+                                              <span>
+                                                <span className="text-white">LYFT</span>{" "}
+                                                <span className="text-emerald-400">~&lt;{extractUpperBound(enrichData.lyftEstimate)}</span>
                                               </span>
                                             </>
                                           )}
