@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { RouteFocus, VenueInfo } from "./game-map";
 import {
   ChevronUp,
@@ -92,6 +92,18 @@ export function BottomTray({
 }) {
   const dragStartY = useRef(0);
   const isDragging = useRef(false);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const prevTrayState = useRef(trayState);
+
+  // Track tray state changes → disable hover during animation
+  useEffect(() => {
+    if (prevTrayState.current !== trayState) {
+      prevTrayState.current = trayState;
+      setIsAnimating(true);
+      const timer = setTimeout(() => setIsAnimating(false), 400);
+      return () => clearTimeout(timer);
+    }
+  }, [trayState]);
 
   const toggle = useCallback(() => {
     onTrayStateChange(trayState === "collapsed" ? "half" : "collapsed");
@@ -156,7 +168,7 @@ export function BottomTray({
 
         {/* Scrollable game list */}
         {trayState === "half" && (
-          <div className="flex-1 overflow-y-auto px-3 pb-3">
+          <div className={`flex-1 overflow-y-auto px-3 pb-3 ${isAnimating ? "pointer-events-none" : ""}`}>
             <table className="w-full text-sm">
               <thead className="sticky top-0 glass">
                 <tr className="text-xs text-white/50 border-b border-white/10">
@@ -289,9 +301,11 @@ export function BottomTray({
                                   key={apt.code}
                                   className="flex items-center gap-1 hover:text-white/90"
                                   onMouseEnter={() =>
-                                    focus && onRouteFocus(focus)
+                                    !isAnimating && focus && onRouteFocus(focus)
                                   }
-                                  onMouseLeave={() => onRouteFocus(null)}
+                                  onMouseLeave={() =>
+                                    !isAnimating && onRouteFocus(null)
+                                  }
                                   onClick={(e) => e.stopPropagation()}
                                 >
                                   <Plane className="size-3" />
@@ -324,25 +338,52 @@ export function BottomTray({
                       <td className="py-2 px-2">
                         {trains.length > 0 ? (
                           <div className="flex flex-col gap-0.5 text-xs text-white/60">
-                            {trains.map((stn) => (
-                              <div
-                                key={stn.code}
-                                className="flex items-center gap-1"
-                              >
-                                <TrainFront className="size-3" />
-                                <a
-                                  href={`https://www.amtrak.com/stations/${stn.code.toLowerCase()}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="font-mono font-semibold hover:underline hover:text-white/90"
+                            {trains.map((stn) => {
+                              const focus: RouteFocus | null =
+                                event.lat != null && event.lng != null
+                                  ? {
+                                      venueLat: event.lat!,
+                                      venueLng: event.lng!,
+                                      airportLat: stn.lat,
+                                      airportLng: stn.lng,
+                                      airportCode: stn.code,
+                                      venueName: event.venue,
+                                    }
+                                  : null;
+                              return (
+                                <div
+                                  key={stn.code}
+                                  className="flex items-center gap-1 hover:text-white/90"
+                                  onMouseEnter={() =>
+                                    !isAnimating && focus && onRouteFocus(focus)
+                                  }
+                                  onMouseLeave={() =>
+                                    !isAnimating && onRouteFocus(null)
+                                  }
                                   onClick={(e) => e.stopPropagation()}
                                 >
-                                  {stn.code}
-                                </a>
-                                <Car className="size-2.5" />
-                                {formatDriveTime(stn.driveMinutes)}
-                              </div>
-                            ))}
+                                  <TrainFront className="size-3" />
+                                  <a
+                                    href={`https://www.amtrak.com/stations/${stn.code.toLowerCase()}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="font-mono font-semibold hover:underline"
+                                  >
+                                    {stn.code}
+                                  </a>
+                                  <Car className="size-2.5" />
+                                  {formatDriveTime(stn.driveMinutes)}
+                                  {stn.transitMinutes != null && (
+                                    <>
+                                      <Bus className="size-2.5 text-blue-400" />
+                                      <span className="text-blue-400">
+                                        {formatDriveTime(stn.transitMinutes)}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
                         ) : (
                           <span className="text-xs text-white/30">--</span>

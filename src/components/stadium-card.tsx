@@ -164,24 +164,44 @@ export function StadiumCard({
                   </div>
                 );
               })}
-              {venue.trains.map((stn) => (
-                <div
-                  key={stn.code}
-                  className="flex items-center gap-1 text-white/60"
-                >
-                  <TrainFront className="size-3" />
-                  <a
-                    href={`https://www.amtrak.com/stations/${stn.code.toLowerCase()}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-mono font-semibold hover:underline hover:text-white/90"
+              {venue.trains.map((stn) => {
+                const focus: RouteFocus = {
+                  venueLat: venue.lat,
+                  venueLng: venue.lng,
+                  airportLat: stn.lat,
+                  airportLng: stn.lng,
+                  airportCode: stn.code,
+                  venueName: venue.venue,
+                };
+                return (
+                  <div
+                    key={stn.code}
+                    className="flex items-center gap-1 text-white/60 cursor-pointer hover:text-white/90"
+                    onMouseEnter={() => onRouteFocus(focus)}
+                    onMouseLeave={() => onRouteFocus(null)}
                   >
-                    {stn.code}
-                  </a>
-                  <Car className="size-3 ml-0.5" />
-                  {formatDriveTime(stn.driveMinutes)}
-                </div>
-              ))}
+                    <TrainFront className="size-3" />
+                    <a
+                      href={`https://www.amtrak.com/stations/${stn.code.toLowerCase()}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-mono font-semibold hover:underline"
+                    >
+                      {stn.code}
+                    </a>
+                    <Car className="size-3 ml-0.5" />
+                    {formatDriveTime(stn.driveMinutes)}
+                    {stn.transitMinutes != null && (
+                      <>
+                        <Bus className="size-3 ml-0.5 text-blue-400" />
+                        <span className="text-blue-400">
+                          {formatDriveTime(stn.transitMinutes)}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </>
         )}

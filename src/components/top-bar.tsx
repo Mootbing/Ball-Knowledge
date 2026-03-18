@@ -10,6 +10,7 @@ export function TopBar({
   availableDates,
   onDateChange,
   gameCount,
+  gameCountByDate,
 }: {
   search: string;
   onSearchChange: (v: string) => void;
@@ -17,6 +18,7 @@ export function TopBar({
   availableDates: string[];
   onDateChange: (date: string) => void;
   gameCount: number;
+  gameCountByDate: Record<string, number>;
 }) {
   return (
     <div className="fixed top-4 left-4 right-4 z-20 flex items-center gap-3 pointer-events-none">
@@ -30,6 +32,7 @@ export function TopBar({
           availableDates={availableDates}
           onDateChange={onDateChange}
           gameCount={gameCount}
+          gameCountByDate={gameCountByDate}
         />
       </div>
     </div>

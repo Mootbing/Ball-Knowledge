@@ -108,6 +108,14 @@ export default function Home() {
     [data]
   );
 
+  const gameCountByDate = useMemo(() => {
+    const map: Record<string, number> = {};
+    data?.dates.forEach((g) => {
+      map[g.date] = g.events.length;
+    });
+    return map;
+  }, [data]);
+
   const todayGames = useMemo(() => {
     const group = data?.dates.find((g) => g.date === currentDate);
     if (!group) return [];
@@ -162,6 +170,7 @@ export default function Home() {
           availableDates={availableDates}
           onDateChange={handleDateChange}
           gameCount={todayGames.length}
+          gameCountByDate={gameCountByDate}
         />
       )}
 
