@@ -1096,7 +1096,7 @@ function TakeMePage() {
                               )}
 
                               {/* Leg */}
-                              <div className="flex gap-3 py-2">
+                              <div className={`flex gap-3 py-2 rounded-lg px-2 -mx-2 transition-colors ${isSwapped ? "bg-[--color-transit]/8" : ""}`}>
                                 {/* Timeline line */}
                                 <div className="flex flex-col items-center w-5">
                                   <div
@@ -1115,9 +1115,9 @@ function TakeMePage() {
                                     <span className={modeColor(displayMode)}>
                                       {modeIcon(displayMode)}
                                     </span>
-                                    <span className="text-sm font-medium font-mono text-foreground">
-                                      {leg.carrier || modeLabel(displayMode)}
-                                      {leg.routeName && (
+                                    <span className={`text-sm font-medium font-mono ${isSwapped ? "text-[--color-transit]" : "text-foreground"}`}>
+                                      {isSwapped ? modeLabel(displayMode) : (leg.carrier || modeLabel(displayMode))}
+                                      {leg.routeName && !isSwapped && (
                                         <span className="text-[--color-dim] ml-1">
                                           {leg.routeName}
                                         </span>
@@ -1135,7 +1135,7 @@ function TakeMePage() {
                                     )}
                                   </div>
 
-                                  <div className="mt-1 text-xs font-mono text-[--color-dim] space-y-0.5">
+                                  <div className={`mt-1 text-xs font-mono space-y-0.5 ${isSwapped ? "text-[--color-transit]/70" : "text-[--color-dim]"}`}>
                                     <div className="flex items-center gap-1">
                                       <MapPin className="size-3" />
                                       <span>{leg.from}</span>
@@ -1250,7 +1250,7 @@ function TakeMePage() {
                                           }
                                           target="_blank"
                                           rel="noopener noreferrer"
-                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono font-semibold border border-white/10 text-[--color-dim] hover:text-foreground transition-colors"
+                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono font-semibold border border-white text-white hover:bg-white/10 transition-colors"
                                           onClick={(e) =>
                                             e.stopPropagation()
                                           }
@@ -1283,7 +1283,7 @@ function TakeMePage() {
                                             href={`https://www.google.com/maps/dir/?api=1&origin=${leg.fromLat},${leg.fromLng}&destination=${leg.toLat},${leg.toLng}&travelmode=transit`}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-[--color-transit]/10 text-[--color-transit] hover:opacity-80 transition-opacity"
+                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border border-white text-white hover:bg-white/10 transition-colors"
                                             onClick={(e) =>
                                               e.stopPropagation()
                                             }
@@ -1331,7 +1331,7 @@ function TakeMePage() {
                                           }
                                           target="_blank"
                                           rel="noopener noreferrer"
-                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-[--color-transit]/10 text-[--color-transit] hover:opacity-80 transition-opacity"
+                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border border-white text-white hover:bg-white/10 transition-colors"
                                           onClick={(e) =>
                                             e.stopPropagation()
                                           }
@@ -1347,7 +1347,7 @@ function TakeMePage() {
                                             href={leg.bookingUrl}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-[--color-flight]/10 text-[--color-flight] border border-[--color-flight]/30 hover:opacity-80 transition-opacity"
+                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border border-white text-white hover:bg-white/10 transition-colors"
                                             onClick={(e) =>
                                               e.stopPropagation()
                                             }
