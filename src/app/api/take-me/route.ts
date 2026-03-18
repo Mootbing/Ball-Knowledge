@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    console.log("[take-me] Searching:", { originLat, originLng, venue, venueLat, venueLng, date, time, preference, maxTransfers });
     const results = await searchRoutes({
       originLat,
       originLng,
@@ -35,6 +36,7 @@ export async function GET(req: NextRequest) {
       preference,
       maxTransfers: Math.min(maxTransfers, 2),
     });
+    console.log("[take-me] Found", results.length, "itineraries");
     return NextResponse.json({ itineraries: results });
   } catch (err) {
     console.error("[take-me] Search error:", err);

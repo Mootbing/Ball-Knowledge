@@ -656,7 +656,17 @@ export function BottomTray({
                       {showVenue && <td className="py-2 px-2 text-gray-500">
                         <span className="flex items-center gap-1">
                           <MapPin className="size-3" />
-                          {event.venue}
+                          {event.lat != null && event.lng != null ? (
+                            <a
+                              href={`https://www.google.com/maps/search/?api=1&query=${event.lat},${event.lng}&query_place_id=${encodeURIComponent(event.venue)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="hover:underline hover:text-gray-700 transition-colors"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {event.venue}
+                            </a>
+                          ) : event.venue}
                           {distanceMap[event.id] != null && (
                             <span className="text-[10px] text-gray-400">
                               ({Math.round(distanceMap[event.id])} mi)
@@ -678,7 +688,7 @@ export function BottomTray({
                                   key={apt.code}
                                   stop={apt}
                                   icon={Plane}
-                                  codeHref={`https://frontier-flight-search.vercel.app/?to=${apt.code}`}
+                                  codeHref={`https://www.google.com/maps/search/?api=1&query=${apt.lat},${apt.lng}`}
                                   vLat={vLat}
                                   vLng={vLng}
                                   times={ek ? enriched[ek] ?? null : null}
@@ -706,7 +716,7 @@ export function BottomTray({
                                   key={stn.code}
                                   stop={stn}
                                   icon={TrainFront}
-                                  codeHref={`https://www.amtrak.com/stations/${stn.code.toLowerCase()}`}
+                                  codeHref={`https://www.google.com/maps/search/?api=1&query=${stn.lat},${stn.lng}`}
                                   vLat={vLat}
                                   vLng={vLng}
                                   times={ek ? enriched[ek] ?? null : null}
@@ -734,7 +744,7 @@ export function BottomTray({
                                   key={bus.code}
                                   stop={bus}
                                   icon={BusFront}
-                                  codeHref={null}
+                                  codeHref={`https://www.google.com/maps/search/?api=1&query=${bus.lat},${bus.lng}`}
                                   vLat={vLat}
                                   vLng={vLng}
                                   times={ek ? enriched[ek] ?? null : null}

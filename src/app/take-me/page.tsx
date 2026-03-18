@@ -430,17 +430,30 @@ function TakeMePage() {
                                         );
                                       })()}
                                     </div>
-                                  ) : leg.bookingUrl ? (
-                                    <a
-                                      href={leg.bookingUrl}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className={`inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded text-xs font-medium ${modeBgColor(leg.mode)} hover:opacity-80 transition-opacity`}
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      Book <ArrowRight className="size-3" />
-                                    </a>
-                                  ) : null}
+                                  ) : (
+                                    <div className="flex gap-1.5 mt-1.5">
+                                      {leg.bookingUrl && (
+                                        <a
+                                          href={leg.bookingUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${modeBgColor(leg.mode)} hover:opacity-80 transition-opacity`}
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          Book <ArrowRight className="size-3" />
+                                        </a>
+                                      )}
+                                      <a
+                                        href={`https://www.google.com/maps/dir/?api=1&origin=${leg.fromLat},${leg.fromLng}&destination=${leg.toLat},${leg.toLng}&travelmode=transit`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 hover:opacity-80 transition-opacity"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        Directions <ArrowRight className="size-3" />
+                                      </a>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </div>
