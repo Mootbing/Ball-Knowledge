@@ -198,7 +198,7 @@ export function LocationPicker({
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="glass rounded-xl flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-black/5 transition-colors"
+        className="glass rounded-xl flex items-center gap-2 px-3 py-3 text-sm hover:bg-black/5 transition-colors"
       >
         <MapPin className="size-4 text-blue-500 shrink-0" />
         <span className="truncate max-w-[120px] text-gray-700">

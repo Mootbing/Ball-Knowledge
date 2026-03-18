@@ -10,8 +10,8 @@ export function SearchBar({
   onChange: (v: string) => void;
 }) {
   return (
-    <div className="relative flex-1 max-w-sm">
-      <div className="glass rounded-xl flex items-center px-3 py-1.5">
+    <div className="relative flex-1 max-w-lg">
+      <div className="glass rounded-xl flex items-center px-3 py-3">
         <Search className="size-4 text-gray-400 shrink-0" />
         <input
           type="text"
