@@ -134,11 +134,13 @@
   }
 }
 
-/* Dark panel */
+/* Dark glassmorphic panel */
 .glass {
-  background: oklch(0.08 0 0);
-  border: 1px solid oklch(1 0 0 / 10%);
-  box-shadow: 0 8px 32px oklch(0 0 0 / 40%);
+  background: oklch(0.08 0 0 / 75%);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  border: 1px solid oklch(1 0 0 / 12%);
+  box-shadow: 0 8px 32px oklch(0 0 0 / 50%);
 }
 
 /* User location pulse */
