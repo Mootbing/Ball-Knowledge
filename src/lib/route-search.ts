@@ -1,15 +1,5 @@
 import fs from "fs";
 import path from "path";
-import {
-  type GtfsIndex,
-  type GtfsStop,
-  ensureGtfsLoaded,
-  findStopsNear,
-  haversineMiles,
-  isServiceActive,
-  parseGtfsTime,
-  gtfsTimeToEst,
-} from "./gtfs";
 import { getTravelTimes } from "./driving";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -22,15 +12,11 @@ export interface SearchParams {
   venueLng: number;
   gameDate: string; // YYYY-MM-DD
   gameTime: string; // HH:MM (EST)
-  preference: Preference;
-  maxTransfers: number; // 0, 1, or 2
-  limit?: number; // max results to return (default 5)
+  limit?: number;
 }
 
-export type Preference = "cheapest" | "fastest";
-
 export interface Leg {
-  mode: "bus" | "train" | "flight" | "drive" | "rideshare" | "walk" | "transit";
+  mode: "flight" | "drive" | "rideshare" | "transit";
   carrier?: string;
   routeName?: string;
   from: string;
@@ -78,15 +64,20 @@ function getStadiumData(): Record<string, StadiumEntry> {
   return stadiumData!;
 }
 
-// ── Price estimation ───────────────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────────────────
 
-function estimateBusFare(miles: number, agencyId: string): number {
-  if (agencyId.startsWith("GREYHOUND")) return Math.max(15, Math.round(miles * 0.10));
-  return Math.max(10, Math.round(miles * 0.08)); // FlixBus
+function haversineMiles(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const R = 3958.8; // Earth radius in miles
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function estimateTrainFare(miles: number): number {
-  return Math.max(20, Math.round(miles * 0.20));
+function estimateDriveMinutes(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const miles = haversineMiles(lat1, lng1, lat2, lng2);
+  return Math.round((miles * 1.4) / 50 * 60);
 }
 
 function estimateFlightCost(miles: number): number {
@@ -94,55 +85,24 @@ function estimateFlightCost(miles: number): number {
 }
 
 function estimateDriveCost(miles: number): number {
-  // Gas (~$0.15/mi) + wear/maintenance (~$0.10/mi) + tolls estimate (~$0.05/mi)
   return Math.max(8, Math.round(miles * 0.30));
 }
 
 function estimateRideFare(miles: number, minutes: number): number {
-  // Base fare + booking/service fee + per-mile + per-minute
   return Math.max(10, Math.round(2.50 + 3.50 + 1.20 * miles + 0.35 * minutes));
 }
 
 function estimateTransitCost(miles: number): number {
-  // Local transit fare: base $2.75, extra for longer trips
   if (miles <= 15) return 3;
   if (miles <= 40) return Math.round(3 + (miles - 15) * 0.08);
   return Math.round(5 + (miles - 40) * 0.05);
 }
 
-function estimateTransitMinutes(driveMinutes: number): number {
-  // Transit is roughly 1.8-2.2x slower than driving
-  return Math.round(driveMinutes * 2);
-}
-
-function estimateDriveMinutes(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const miles = haversineMiles(lat1, lng1, lat2, lng2);
-  return Math.round((miles * 1.4) / 50 * 60); // road factor 1.4, avg 50mph
-}
-
-// ── Time helpers ───────────────────────────────────────────────────────────
-
 function dateStr(d: string): string {
-  // YYYY-MM-DD → YYYYMMDD
   return d.replace(/-/g, "");
 }
 
-function prevDateStr(yyyymmdd: string): string {
-  const y = parseInt(yyyymmdd.substring(0, 4), 10);
-  const m = parseInt(yyyymmdd.substring(4, 6), 10) - 1;
-  const d = parseInt(yyyymmdd.substring(6, 8), 10);
-  const dt = new Date(y, m, d - 1);
-  return `${dt.getFullYear()}${String(dt.getMonth() + 1).padStart(2, "0")}${String(dt.getDate()).padStart(2, "0")}`;
-}
-
-/** Format minutes from midnight as "HH:MM" */
-function minutesToTime(min: number): string {
-  const h = Math.floor(min / 60) % 24;
-  const m = min % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-}
-
-/** Build ISO datetime from date (YYYY-MM-DD) and minutes from midnight (EST) */
+/** Build ISO datetime from date (YYYYMMDD) and minutes from midnight (EST) */
 function toIso(dateYYYYMMDD: string, estMinutes: number): string {
   const y = parseInt(dateYYYYMMDD.substring(0, 4), 10);
   const m = parseInt(dateYYYYMMDD.substring(4, 6), 10) - 1;
@@ -152,33 +112,19 @@ function toIso(dateYYYYMMDD: string, estMinutes: number): string {
   return dt.toISOString();
 }
 
-function carrierName(agencyId: string): string {
-  if (agencyId.startsWith("GREYHOUND")) return "Greyhound";
-  if (agencyId.startsWith("FLIXBUS")) return "FlixBus";
-  return agencyId;
-}
-
-function bookingUrl(agencyId: string): string {
-  if (agencyId.startsWith("GREYHOUND")) return "https://shop.greyhound.com";
-  if (agencyId.startsWith("FLIXBUS")) return "https://shop.flixbus.com";
-  return "";
-}
-
 // ── Search ─────────────────────────────────────────────────────────────────
 
 export async function searchRoutes(params: SearchParams): Promise<Itinerary[]> {
-  const { originLat, originLng, venueName, venueLat, venueLng, gameDate, gameTime, maxTransfers } = params;
+  const { originLat, originLng, venueName, venueLat, venueLng, gameDate, gameTime } = params;
+  const limit = params.limit ?? 5;
 
-  const gtfs = await ensureGtfsLoaded();
   const gameDateYMD = dateStr(gameDate);
-  const prevDay = prevDateStr(gameDateYMD);
   const [gh, gm] = gameTime.split(":").map(Number);
   const gameMinutesEst = gh * 60 + gm;
-  const arrivalDeadline = gameMinutesEst; // must arrive before game starts
+  const arrivalDeadline = gameMinutesEst;
 
-  // ── Compute "now" in EST to filter out past departures ──
+  // Compute "now" in EST to filter out past departures
   const nowUtc = new Date();
-  // EST = UTC-5 (not handling DST — close enough for filtering)
   const nowEstMs = nowUtc.getTime() + (-5 * 60 * 60 * 1000);
   const nowEstDate = new Date(nowEstMs);
   const todayYMD = `${nowEstDate.getUTCFullYear()}${String(nowEstDate.getUTCMonth() + 1).padStart(2, "0")}${String(nowEstDate.getUTCDate()).padStart(2, "0")}`;
@@ -186,382 +132,89 @@ export async function searchRoutes(params: SearchParams): Promise<Itinerary[]> {
   const isGameToday = gameDateYMD === todayYMD;
   const isGameInPast = gameDateYMD < todayYMD;
 
-  // If the game date is in the past, no bookable trips exist
   if (isGameInPast) return [];
-
-  // If game is today and already started, no point searching
   if (isGameToday && nowEstMinutes >= gameMinutesEst) return [];
 
-  // Earliest allowed departure: if game is today, must be >= now; otherwise no constraint
   const earliestDepartEst = isGameToday ? nowEstMinutes : 0;
 
   const stadium = getStadiumData()[venueName];
   const itineraries: Itinerary[] = [];
   let idCounter = 0;
 
-  // ── Phase A: Identify destination stops from stadium data ──
+  // ── 1. Drive + Transit (real Google Maps data) ──
 
-  interface DestStop { stop: GtfsStop; index: GtfsIndex; distToVenueMiles: number; name: string; code: string }
-  const destStops: DestStop[] = [];
+  const driveMiles = haversineMiles(originLat, originLng, venueLat, venueLng);
+  const roadMiles = driveMiles * 1.4;
+  const realTimes = await getTravelTimes(originLat, originLng, venueLat, venueLng);
 
-  if (stadium) {
-    // Bus stations
-    for (const bs of stadium.busStations ?? []) {
-      const gtfsStop = gtfs.bus.stopsByCode.get(bs.code);
-      if (gtfsStop) {
-        destStops.push({
-          stop: gtfsStop,
-          index: gtfs.bus,
-          distToVenueMiles: haversineMiles(gtfsStop.stop_lat, gtfsStop.stop_lon, venueLat, venueLng),
-          name: bs.name,
-          code: bs.code,
-        });
-      }
-    }
+  // Drive
+  const driveMin = realTimes.driveMinutes;
+  const driveCost = estimateDriveCost(roadMiles);
+  const driveDepart = arrivalDeadline - driveMin;
 
-    // Train stations (amtrak)
-    if (gtfs.amtrak) {
-      for (const ts of stadium.trainStations ?? []) {
-        const gtfsStop = gtfs.amtrak.stopsByCode.get(ts.code);
-        if (gtfsStop) {
-          destStops.push({
-            stop: gtfsStop,
-            index: gtfs.amtrak,
-            distToVenueMiles: haversineMiles(gtfsStop.stop_lat, gtfsStop.stop_lon, venueLat, venueLng),
-            name: ts.name,
-            code: ts.code,
-          });
-        }
-      }
-    }
+  if (driveDepart >= earliestDepartEst) {
+    const gmapsLink = `https://www.google.com/maps/dir/?api=1&origin=${originLat},${originLng}&destination=${venueLat},${venueLng}&travelmode=driving`;
+    itineraries.push({
+      id: `drive-${idCounter++}`,
+      totalMinutes: driveMin,
+      totalCost: driveCost,
+      departureTime: toIso(gameDateYMD, driveDepart),
+      arrivalTime: toIso(gameDateYMD, arrivalDeadline),
+      bufferMinutes: 0,
+      legs: [{
+        mode: "drive",
+        from: "Your location", fromLat: originLat, fromLng: originLng,
+        to: venueName, toLat: venueLat, toLng: venueLng,
+        depart: toIso(gameDateYMD, driveDepart),
+        arrive: toIso(gameDateYMD, arrivalDeadline),
+        minutes: driveMin, cost: driveCost,
+        bookingUrl: gmapsLink,
+        miles: Math.round(roadMiles),
+      }],
+    });
   }
 
-  // ── Phase A: Origin stops nearby ──
+  // Transit
+  if (realTimes.transitMinutes != null) {
+    const transitMin = realTimes.transitMinutes;
+    const transitCost = realTimes.transitFare
+      ? parseInt(realTimes.transitFare.replace(/[^0-9]/g, ""), 10) || 3
+      : estimateTransitCost(roadMiles);
+    const transitDepart = arrivalDeadline - transitMin;
 
-  interface OriginStop { stop: GtfsStop; index: GtfsIndex; driveMinFromOrigin: number; distFromOriginMiles: number }
-  const originStops: OriginStop[] = [];
-
-  const nearBus = findStopsNear(originLat, originLng, 75, gtfs.bus);
-  for (const s of nearBus) {
-    const dist = haversineMiles(originLat, originLng, s.stop_lat, s.stop_lon);
-    originStops.push({ stop: s, index: gtfs.bus, driveMinFromOrigin: estimateDriveMinutes(originLat, originLng, s.stop_lat, s.stop_lon), distFromOriginMiles: dist });
-  }
-
-  if (gtfs.amtrak) {
-    const nearTrain = findStopsNear(originLat, originLng, 75, gtfs.amtrak);
-    for (const s of nearTrain) {
-      const dist = haversineMiles(originLat, originLng, s.stop_lat, s.stop_lon);
-      originStops.push({ stop: s, index: gtfs.amtrak, driveMinFromOrigin: estimateDriveMinutes(originLat, originLng, s.stop_lat, s.stop_lon), distFromOriginMiles: dist });
-    }
-  }
-
-  // ── Phase B: Direct GTFS trips (0 transfers) ──
-
-  for (const orig of originStops) {
-    const tripsFromOrigin = orig.index.stopTrips.get(orig.stop.stop_id);
-    if (!tripsFromOrigin) continue;
-
-    for (const origEntry of tripsFromOrigin) {
-      const trip = orig.index.trips.get(origEntry.trip_id);
-      if (!trip) continue;
-
-      // Check service active on game date or prev day (for overnight trips)
-      const activeToday = isServiceActive(trip.service_id, gameDateYMD, orig.index);
-      const activePrev = isServiceActive(trip.service_id, prevDay, orig.index);
-      if (!activeToday && !activePrev) continue;
-
-      const tripStopList = orig.index.tripStops.get(origEntry.trip_id);
-      if (!tripStopList) continue;
-
-      // Check if any dest stop is on this trip after origin
-      for (const dest of destStops) {
-        if (dest.index !== orig.index) continue; // must be same network
-
-        const destEntry = tripStopList.find(
-          (ts) => ts.stop_id === dest.stop.stop_id && ts.stop_sequence > origEntry.stop_sequence
-        );
-        if (!destEntry) continue;
-
-        const departMin = parseGtfsTime(origEntry.departure);
-        const arriveMin = parseGtfsTime(destEntry.arrival_time);
-
-        // Check which day this service runs
-        const isOvernight = arriveMin >= 1440;
-        const useDate = activeToday ? gameDateYMD : (activePrev && isOvernight ? prevDay : null);
-        if (!useDate) continue;
-
-        // Convert arrival to EST
-        const destTz = dest.stop.stop_timezone || "America/New_York";
-        const arriveEst = gtfsTimeToEst(arriveMin % 1440, destTz) + (isOvernight && useDate === gameDateYMD ? 0 : 0);
-
-        // Last mile time
-        const lastMileMin = estimateDriveMinutes(dest.stop.stop_lat, dest.stop.stop_lon, venueLat, venueLng);
-        const totalArrivalEst = arriveEst + lastMileMin;
-
-        if (totalArrivalEst > arrivalDeadline) continue; // too late
-
-        // First mile
-        const firstMileMin = orig.driveMinFromOrigin;
-        const departEst = gtfsTimeToEst(departMin % 1440, orig.stop.stop_timezone || "America/New_York");
-        const leaveHomeEst = departEst - firstMileMin;
-
-        // Skip if departure is in the past
-        if (leaveHomeEst < earliestDepartEst) continue;
-
-        // Trip details
-        const tripMiles = haversineMiles(orig.stop.stop_lat, orig.stop.stop_lon, dest.stop.stop_lat, dest.stop.stop_lon);
-        const route = orig.index.routes.get(trip.route_id);
-        const agencyId = route?.agency_id ?? "";
-        const mode: "bus" | "train" = orig.index.provider === "amtrak" ? "train" : "bus";
-        const cost = mode === "train" ? estimateTrainFare(tripMiles) : estimateBusFare(tripMiles, agencyId);
-        const firstMileMiles = orig.distFromOriginMiles;
-        const lastMileMiles = dest.distToVenueMiles;
-        const firstMileCost = estimateRideFare(firstMileMiles * 1.4, firstMileMin);
-        const lastMileCost = estimateRideFare(lastMileMiles * 1.4, lastMileMin);
-
-        const totalMinutes = totalArrivalEst - leaveHomeEst;
-        if (totalMinutes <= 0 || totalMinutes > 2880) continue; // sanity
-
-        const legs: Leg[] = [];
-
-        // First mile (rideshare to station)
-        if (firstMileMin > 5) {
-          legs.push({
-            mode: "rideshare",
-            from: "Your location",
-            fromLat: originLat, fromLng: originLng,
-            to: orig.stop.stop_name,
-            toLat: orig.stop.stop_lat, toLng: orig.stop.stop_lon,
-            depart: toIso(useDate, leaveHomeEst),
-            arrive: toIso(useDate, departEst),
-            minutes: firstMileMin,
-            cost: firstMileCost,
-            miles: Math.round(firstMileMiles * 1.4),
-          });
-        }
-
-        // Main GTFS leg
-        legs.push({
-          mode,
-          carrier: carrierName(agencyId),
-          routeName: route?.route_short_name || route?.route_long_name || "",
-          from: orig.stop.stop_name,
-          fromLat: orig.stop.stop_lat, fromLng: orig.stop.stop_lon,
-          to: dest.stop.stop_name,
-          toLat: dest.stop.stop_lat, toLng: dest.stop.stop_lon,
-          depart: toIso(useDate, departEst),
-          arrive: toIso(useDate, arriveEst),
-          minutes: arriveMin - departMin,
-          cost,
-          bookingUrl: bookingUrl(agencyId) || (mode === "train" ? "https://www.amtrak.com" : undefined),
-          miles: Math.round(tripMiles),
-        });
-
-        // Last mile (rideshare to venue)
-        if (lastMileMin > 5) {
-          legs.push({
-            mode: "rideshare",
-            from: dest.stop.stop_name,
-            fromLat: dest.stop.stop_lat, fromLng: dest.stop.stop_lon,
-            to: venueName,
-            toLat: venueLat, toLng: venueLng,
-            depart: toIso(useDate, arriveEst),
-            arrive: toIso(useDate, totalArrivalEst),
-            minutes: lastMileMin,
-            cost: lastMileCost,
-            miles: Math.round(lastMileMiles * 1.4),
-          });
-        }
-
-        itineraries.push({
-          id: `gtfs-${idCounter++}`,
-          totalMinutes,
-          totalCost: legs.reduce((s, l) => s + l.cost, 0),
-          departureTime: legs[0].depart,
-          arrivalTime: legs[legs.length - 1].arrive,
-          bufferMinutes: gameMinutesEst - totalArrivalEst,
-          legs,
-        });
-      }
+    if (transitDepart >= earliestDepartEst && transitDepart >= 0) {
+      const gmapsTransit = `https://www.google.com/maps/dir/?api=1&origin=${originLat},${originLng}&destination=${venueLat},${venueLng}&travelmode=transit`;
+      itineraries.push({
+        id: `transit-${idCounter++}`,
+        totalMinutes: transitMin,
+        totalCost: transitCost,
+        departureTime: toIso(gameDateYMD, transitDepart),
+        arrivalTime: toIso(gameDateYMD, arrivalDeadline),
+        bufferMinutes: 0,
+        legs: [{
+          mode: "transit",
+          carrier: "Public Transit",
+          from: "Your location", fromLat: originLat, fromLng: originLng,
+          to: venueName, toLat: venueLat, toLng: venueLng,
+          depart: toIso(gameDateYMD, transitDepart),
+          arrive: toIso(gameDateYMD, arrivalDeadline),
+          minutes: transitMin, cost: transitCost,
+          bookingUrl: gmapsTransit,
+          miles: Math.round(roadMiles),
+        }],
+      });
     }
   }
 
-  // ── Phase C: 1-transfer trips ──
-
-  if (maxTransfers >= 1 && originStops.length > 0 && destStops.length > 0) {
-    // Bounding box for intermediate stops
-    const minLat = Math.min(originLat, venueLat) - 2;
-    const maxLat = Math.max(originLat, venueLat) + 2;
-    const minLng = Math.min(originLng, venueLng) - 2;
-    const maxLng = Math.max(originLng, venueLng) + 2;
-
-    for (const orig of originStops.slice(0, 20)) { // limit origin stops
-      const tripsFromOrigin = orig.index.stopTrips.get(orig.stop.stop_id);
-      if (!tripsFromOrigin) continue;
-
-      for (const origEntry of tripsFromOrigin.slice(0, 50)) { // limit trips
-        const trip1 = orig.index.trips.get(origEntry.trip_id);
-        if (!trip1) continue;
-        if (!isServiceActive(trip1.service_id, gameDateYMD, orig.index)) continue;
-
-        const trip1Stops = orig.index.tripStops.get(origEntry.trip_id);
-        if (!trip1Stops) continue;
-
-        // Get intermediate stops after origin
-        const intermediates = trip1Stops.filter(
-          (ts) => ts.stop_sequence > origEntry.stop_sequence
-        );
-
-        for (const mid of intermediates.slice(0, 15)) { // limit intermediates
-          const midStop = orig.index.stops.get(mid.stop_id);
-          if (!midStop) continue;
-
-          // Bounding box filter
-          if (midStop.stop_lat < minLat || midStop.stop_lat > maxLat || midStop.stop_lon < minLng || midStop.stop_lon > maxLng) continue;
-
-          const midArriveMin = parseGtfsTime(mid.arrival_time);
-          const minDepartMin = midArriveMin + 30; // 30min transfer time
-
-          // Look for connecting trips from midStop to any dest
-          for (const destInfo of destStops) {
-            const connectTrips = destInfo.index.stopTrips.get(midStop.stop_id);
-            if (!connectTrips) continue;
-
-            for (const conn of connectTrips.slice(0, 20)) {
-              if (parseGtfsTime(conn.departure) < minDepartMin) continue;
-
-              const trip2 = destInfo.index.trips.get(conn.trip_id);
-              if (!trip2) continue;
-              if (!isServiceActive(trip2.service_id, gameDateYMD, destInfo.index)) continue;
-
-              // Check forbidden transfer
-              const route1 = orig.index.routes.get(trip1.route_id);
-              const route2 = destInfo.index.routes.get(trip2.route_id);
-              if (orig.index.forbiddenTransfers.has(`${midStop.stop_id}:${trip1.route_id}→${trip2.route_id}`)) continue;
-
-              // Check if trip2 reaches dest
-              const trip2Stops = destInfo.index.tripStops.get(conn.trip_id);
-              if (!trip2Stops) continue;
-
-              const destEntry = trip2Stops.find(
-                (ts) => ts.stop_id === destInfo.stop.stop_id && ts.stop_sequence > conn.stop_sequence
-              );
-              if (!destEntry) continue;
-
-              const destArriveMin = parseGtfsTime(destEntry.arrival_time);
-              const destTz = destInfo.stop.stop_timezone || "America/New_York";
-              const destArriveEst = gtfsTimeToEst(destArriveMin % 1440, destTz);
-
-              const lastMileMin = estimateDriveMinutes(destInfo.stop.stop_lat, destInfo.stop.stop_lon, venueLat, venueLng);
-              if (destArriveEst + lastMileMin > arrivalDeadline) continue;
-
-              // Build itinerary
-              const departMin = parseGtfsTime(origEntry.departure);
-              const origTz = orig.stop.stop_timezone || "America/New_York";
-              const departEst = gtfsTimeToEst(departMin % 1440, origTz);
-              const firstMileMin = orig.driveMinFromOrigin;
-              const leaveHomeEst = departEst - firstMileMin;
-
-              // Skip if departure is in the past
-              if (leaveHomeEst < earliestDepartEst) continue;
-
-              const totalArrivalEst = destArriveEst + lastMileMin;
-              const totalMinutes = totalArrivalEst - leaveHomeEst;
-              if (totalMinutes <= 0 || totalMinutes > 2880) continue;
-
-              const legs: Leg[] = [];
-
-              // First mile
-              if (firstMileMin > 5) {
-                const firstMileMiles = orig.distFromOriginMiles;
-                legs.push({
-                  mode: "rideshare",
-                  from: "Your location", fromLat: originLat, fromLng: originLng,
-                  to: orig.stop.stop_name, toLat: orig.stop.stop_lat, toLng: orig.stop.stop_lon,
-                  depart: toIso(gameDateYMD, leaveHomeEst), arrive: toIso(gameDateYMD, departEst),
-                  minutes: firstMileMin, cost: estimateRideFare(firstMileMiles * 1.4, firstMileMin),
-                  miles: Math.round(firstMileMiles * 1.4),
-                });
-              }
-
-              // Leg 1
-              const leg1Miles = haversineMiles(orig.stop.stop_lat, orig.stop.stop_lon, midStop.stop_lat, midStop.stop_lon);
-              const mode1: "bus" | "train" = orig.index.provider === "amtrak" ? "train" : "bus";
-              const midArriveEst = gtfsTimeToEst(midArriveMin % 1440, midStop.stop_timezone || "America/New_York");
-              legs.push({
-                mode: mode1,
-                carrier: carrierName(route1?.agency_id ?? ""),
-                routeName: route1?.route_short_name || "",
-                from: orig.stop.stop_name, fromLat: orig.stop.stop_lat, fromLng: orig.stop.stop_lon,
-                to: midStop.stop_name, toLat: midStop.stop_lat, toLng: midStop.stop_lon,
-                depart: toIso(gameDateYMD, departEst), arrive: toIso(gameDateYMD, midArriveEst),
-                minutes: midArriveMin - departMin,
-                cost: mode1 === "train" ? estimateTrainFare(leg1Miles) : estimateBusFare(leg1Miles, route1?.agency_id ?? ""),
-                bookingUrl: bookingUrl(route1?.agency_id ?? "") || (mode1 === "train" ? "https://www.amtrak.com" : undefined),
-                miles: Math.round(leg1Miles),
-              });
-
-              // Leg 2
-              const connDepartMin = parseGtfsTime(conn.departure);
-              const connDepartEst = gtfsTimeToEst(connDepartMin % 1440, midStop.stop_timezone || "America/New_York");
-              const leg2Miles = haversineMiles(midStop.stop_lat, midStop.stop_lon, destInfo.stop.stop_lat, destInfo.stop.stop_lon);
-              const mode2: "bus" | "train" = destInfo.index.provider === "amtrak" ? "train" : "bus";
-              legs.push({
-                mode: mode2,
-                carrier: carrierName(route2?.agency_id ?? ""),
-                routeName: route2?.route_short_name || "",
-                from: midStop.stop_name, fromLat: midStop.stop_lat, fromLng: midStop.stop_lon,
-                to: destInfo.stop.stop_name, toLat: destInfo.stop.stop_lat, toLng: destInfo.stop.stop_lon,
-                depart: toIso(gameDateYMD, connDepartEst), arrive: toIso(gameDateYMD, destArriveEst),
-                minutes: destArriveMin - connDepartMin,
-                cost: mode2 === "train" ? estimateTrainFare(leg2Miles) : estimateBusFare(leg2Miles, route2?.agency_id ?? ""),
-                bookingUrl: bookingUrl(route2?.agency_id ?? "") || (mode2 === "train" ? "https://www.amtrak.com" : undefined),
-                miles: Math.round(leg2Miles),
-              });
-
-              // Last mile
-              if (lastMileMin > 5) {
-                const lastMileMiles = destInfo.distToVenueMiles;
-                legs.push({
-                  mode: "rideshare",
-                  from: destInfo.stop.stop_name, fromLat: destInfo.stop.stop_lat, fromLng: destInfo.stop.stop_lon,
-                  to: venueName, toLat: venueLat, toLng: venueLng,
-                  depart: toIso(gameDateYMD, destArriveEst), arrive: toIso(gameDateYMD, totalArrivalEst),
-                  minutes: lastMileMin, cost: estimateRideFare(destInfo.distToVenueMiles * 1.4, lastMileMin),
-                  miles: Math.round(lastMileMiles * 1.4),
-                });
-              }
-
-              itineraries.push({
-                id: `gtfs-1x-${idCounter++}`,
-                totalMinutes,
-                totalCost: legs.reduce((s, l) => s + l.cost, 0),
-                departureTime: legs[0].depart,
-                arrivalTime: legs[legs.length - 1].arrive,
-                bufferMinutes: gameMinutesEst - totalArrivalEst,
-                legs,
-              });
-            }
-          }
-        }
-      }
-    }
-  }
-
-  // ── Phase E: Flight itineraries ──
+  // ── 2. Flight itineraries ──
 
   if (stadium) {
     const destAirports = stadium.airports ?? [];
-    // Find origin airports within 100mi
-    const originAirports: { code: string; name: string; lat: number; lng: number }[] = [];
-    const allAirports: { code: string; shortName: string; fullName: string; countryCode: string }[] = JSON.parse(
-      fs.readFileSync(path.join(process.cwd(), "data", "airports.json"), "utf-8")
-    );
 
-    // Also add airports from nearby stadiums
-    const stadiums = getStadiumData();
+    // Find origin airports within 100mi from all known stadiums
+    const originAirports: { code: string; name: string; lat: number; lng: number }[] = [];
     const seenCodes = new Set<string>();
-    for (const s of Object.values(stadiums)) {
+    for (const s of Object.values(getStadiumData())) {
       for (const a of s.airports) {
         if (!seenCodes.has(a.code) && haversineMiles(originLat, originLng, a.lat, a.lng) <= 100) {
           originAirports.push(a);
@@ -575,9 +228,9 @@ export async function searchRoutes(params: SearchParams): Promise<Itinerary[]> {
         if (origApt.code === destApt.code) continue;
 
         const flightMiles = haversineMiles(origApt.lat, origApt.lng, destApt.lat, destApt.lng);
-        if (flightMiles < 100) continue; // too short to fly
+        if (flightMiles < 100) continue;
 
-        const flightMin = Math.round(flightMiles / 500 * 60 + 90); // speed + airport overhead
+        const flightMin = Math.round(flightMiles / 500 * 60 + 90); // cruise speed + airport overhead
         const flightCost = estimateFlightCost(flightMiles);
 
         // First mile: user → origin airport
@@ -591,21 +244,16 @@ export async function searchRoutes(params: SearchParams): Promise<Itinerary[]> {
         const fromAirportCost = estimateRideFare(fromAirportMiles * 1.4, fromAirportMin);
 
         // Work backwards from game time
-        const venueArriveEst = arrivalDeadline;
-        const airportArriveEst = venueArriveEst - fromAirportMin;
+        const airportArriveEst = arrivalDeadline - fromAirportMin;
         const flightDepartEst = airportArriveEst - flightMin;
         const leaveHomeEst = flightDepartEst - toAirportMin - 90; // 90min pre-flight buffer
 
-        if (leaveHomeEst < 0) continue; // would need to leave before midnight
+        if (leaveHomeEst < 0 || leaveHomeEst < earliestDepartEst) continue;
 
-        // Skip if departure is in the past
-        if (leaveHomeEst < earliestDepartEst) continue;
-
-        const totalMinutes = venueArriveEst - leaveHomeEst;
-
+        const totalMinutes = arrivalDeadline - leaveHomeEst;
         const legs: Leg[] = [];
 
-        // First mile
+        // First mile (rideshare to airport)
         if (toAirportMin > 5) {
           legs.push({
             mode: "rideshare",
@@ -633,14 +281,14 @@ export async function searchRoutes(params: SearchParams): Promise<Itinerary[]> {
           miles: Math.round(flightMiles),
         });
 
-        // Last mile
+        // Last mile (rideshare from airport)
         if (fromAirportMin > 5) {
           legs.push({
             mode: "rideshare",
             from: destApt.name, fromLat: destApt.lat, fromLng: destApt.lng,
             to: venueName, toLat: venueLat, toLng: venueLng,
             depart: toIso(gameDateYMD, airportArriveEst),
-            arrive: toIso(gameDateYMD, venueArriveEst),
+            arrive: toIso(gameDateYMD, arrivalDeadline),
             minutes: fromAirportMin, cost: fromAirportCost,
             miles: Math.round(fromAirportMiles * 1.4),
           });
@@ -652,233 +300,16 @@ export async function searchRoutes(params: SearchParams): Promise<Itinerary[]> {
           totalCost: legs.reduce((s, l) => s + l.cost, 0),
           departureTime: legs[0].depart,
           arrivalTime: legs[legs.length - 1].arrive,
-          bufferMinutes: gameMinutesEst - venueArriveEst,
+          bufferMinutes: gameMinutesEst - arrivalDeadline,
           legs,
         });
       }
     }
   }
 
-  // ── Phase F: Drive-only + Transit-only itineraries (real Google Maps data) ──
+  // Sort flights by total time, keep drive/transit first
+  const driveTransit = itineraries.filter((i) => i.id.startsWith("drive-") || i.id.startsWith("transit-"));
+  const flights = itineraries.filter((i) => i.id.startsWith("flight-")).sort((a, b) => a.totalMinutes - b.totalMinutes);
 
-  {
-    const driveMiles = haversineMiles(originLat, originLng, venueLat, venueLng);
-    const roadMiles = driveMiles * 1.4;
-
-    // Fetch real driving and transit times from Google Maps
-    const realTimes = await getTravelTimes(originLat, originLng, venueLat, venueLng);
-    const driveMin = realTimes.driveMinutes;
-    const driveCost = estimateDriveCost(roadMiles);
-
-    const arriveEst = arrivalDeadline;
-    const departEst = arriveEst - driveMin;
-
-    if (departEst >= earliestDepartEst) {
-      const gmapsLink = `https://www.google.com/maps/dir/?api=1&origin=${originLat},${originLng}&destination=${venueLat},${venueLng}&travelmode=driving`;
-
-      itineraries.push({
-        id: `drive-${idCounter++}`,
-        totalMinutes: driveMin,
-        totalCost: driveCost,
-        departureTime: toIso(gameDateYMD, departEst),
-        arrivalTime: toIso(gameDateYMD, arriveEst),
-        bufferMinutes: gameMinutesEst - arriveEst,
-        legs: [{
-          mode: "drive",
-          from: "Your location", fromLat: originLat, fromLng: originLng,
-          to: venueName, toLat: venueLat, toLng: venueLng,
-          depart: toIso(gameDateYMD, departEst),
-          arrive: toIso(gameDateYMD, arriveEst),
-          minutes: driveMin, cost: driveCost,
-          bookingUrl: gmapsLink,
-          miles: Math.round(roadMiles),
-        }],
-      });
-    }
-
-    // Transit-only itinerary using real Google Maps transit data
-    if (realTimes.transitMinutes != null) {
-      const transitMin = realTimes.transitMinutes;
-      const transitCost = realTimes.transitFare ? parseInt(realTimes.transitFare.replace(/[^0-9]/g, ""), 10) || 3 : estimateTransitCost(roadMiles);
-      const transitDepartEst = arriveEst - transitMin;
-
-      if (transitDepartEst >= earliestDepartEst && transitDepartEst >= 0) {
-        const gmapsTransit = `https://www.google.com/maps/dir/?api=1&origin=${originLat},${originLng}&destination=${venueLat},${venueLng}&travelmode=transit`;
-
-        itineraries.push({
-          id: `transit-direct-${idCounter++}`,
-          totalMinutes: transitMin,
-          totalCost: transitCost,
-          departureTime: toIso(gameDateYMD, transitDepartEst),
-          arrivalTime: toIso(gameDateYMD, arriveEst),
-          bufferMinutes: gameMinutesEst - arriveEst,
-          legs: [{
-            mode: "transit",
-            carrier: "Public Transit",
-            from: "Your location", fromLat: originLat, fromLng: originLng,
-            to: venueName, toLat: venueLat, toLng: venueLng,
-            depart: toIso(gameDateYMD, transitDepartEst),
-            arrive: toIso(gameDateYMD, arriveEst),
-            minutes: transitMin, cost: transitCost,
-            bookingUrl: gmapsTransit,
-            miles: Math.round(roadMiles),
-          }],
-        });
-      }
-    }
-  }
-
-  // ── Phase G: Transit variants ──
-  // For itineraries with rideshare first/last mile, create a variant using real transit data
-
-  const transitVariants: Itinerary[] = [];
-  for (const it of itineraries) {
-    // Skip itineraries that already use transit or are transit-direct
-    if (it.id.startsWith("transit-direct")) continue;
-    const rideLegs = it.legs.filter((l) => l.mode === "rideshare");
-    if (rideLegs.length === 0) continue;
-
-    // Fetch real transit times for each rideshare leg in parallel
-    const realTimesMap = new Map<number, Awaited<ReturnType<typeof getTravelTimes>>>();
-    await Promise.all(
-      it.legs.map(async (leg, i) => {
-        if (leg.mode === "rideshare") {
-          realTimesMap.set(i, await getTravelTimes(leg.fromLat, leg.fromLng, leg.toLat, leg.toLng));
-        }
-      })
-    );
-
-    // Only create variant if at least one leg has real transit data
-    const hasTransitData = [...realTimesMap.values()].some((t) => t.transitMinutes != null);
-    if (!hasTransitData) continue;
-
-    const newLegs: Leg[] = [];
-    let totalShift = 0;
-
-    for (let i = 0; i < it.legs.length; i++) {
-      const leg = it.legs[i];
-      const real = realTimesMap.get(i);
-
-      if (leg.mode === "rideshare" && real && real.transitMinutes != null) {
-        const transitMin = real.transitMinutes;
-        const extraMin = transitMin - leg.minutes;
-        const transitCost = real.transitFare ? parseInt(real.transitFare.replace(/[^0-9]/g, ""), 10) || 3 : estimateTransitCost(leg.miles);
-        const gmapsTransit = `https://www.google.com/maps/dir/?api=1&origin=${leg.fromLat},${leg.fromLng}&destination=${leg.toLat},${leg.toLng}&travelmode=transit`;
-
-        const origDepart = new Date(leg.depart).getTime();
-        const newDepart = new Date(origDepart - Math.max(0, extraMin) * 60000).toISOString();
-
-        newLegs.push({
-          ...leg,
-          mode: "transit",
-          carrier: "Public Transit",
-          minutes: transitMin,
-          cost: transitCost,
-          depart: newDepart,
-          bookingUrl: gmapsTransit,
-        });
-        totalShift += Math.max(0, extraMin);
-      } else {
-        newLegs.push({ ...leg });
-      }
-    }
-
-    const totalMinutes = it.totalMinutes + totalShift;
-    const totalCost = newLegs.reduce((s, l) => s + l.cost, 0);
-    const departureTime = new Date(new Date(it.departureTime).getTime() - totalShift * 60000).toISOString();
-
-    // Validate chronological ordering: each leg must depart after the previous leg arrives
-    let chronoValid = true;
-    for (let j = 1; j < newLegs.length; j++) {
-      if (new Date(newLegs[j].depart).getTime() < new Date(newLegs[j - 1].arrive).getTime()) {
-        chronoValid = false;
-        break;
-      }
-    }
-    if (!chronoValid) continue;
-
-    const departHour = new Date(departureTime).getHours();
-    if (totalMinutes > 0 && totalMinutes <= 2880 && departHour >= 4) {
-      transitVariants.push({
-        id: `transit-${idCounter++}`,
-        totalMinutes,
-        totalCost,
-        departureTime,
-        arrivalTime: it.arrivalTime,
-        bufferMinutes: it.bufferMinutes,
-        legs: newLegs,
-      });
-    }
-  }
-
-  itineraries.push(...transitVariants);
-
-  // ── Phase H: Score & rank ──
-
-  return rankItineraries(itineraries, params.preference, params.limit ?? 5);
-}
-
-// ── Scoring ────────────────────────────────────────────────────────────────
-
-// Mode priority for cheapest: transit > bus > train > flight > drive
-const CHEAPEST_MODE_BONUS: Record<string, number> = {
-  transit: -0.3,
-  bus: -0.2,
-  train: -0.1,
-  flight: 0,
-  drive: 0.05,
-};
-
-// Mode priority for fastest: flight/direct > drive > train > bus > transit
-const FASTEST_MODE_BONUS: Record<string, number> = {
-  flight: -0.3,
-  drive: -0.1,
-  train: 0,
-  bus: 0.05,
-  transit: 0.1,
-};
-
-function rankItineraries(itineraries: Itinerary[], preference: Preference, limit: number = 5): Itinerary[] {
-  if (itineraries.length === 0) return [];
-
-  // Compute min/max for normalization
-  const times = itineraries.map((i) => i.totalMinutes);
-  const costs = itineraries.map((i) => i.totalCost);
-
-  const minTime = Math.min(...times), maxTime = Math.max(...times);
-  const minCost = Math.min(...costs), maxCost = Math.max(...costs);
-
-  const norm = (val: number, min: number, max: number) => max === min ? 0 : (val - min) / (max - min);
-
-  const modeBonuses = preference === "cheapest" ? CHEAPEST_MODE_BONUS : FASTEST_MODE_BONUS;
-
-  const scored = itineraries.map((it, idx) => {
-    const tNorm = norm(times[idx], minTime, maxTime);
-    const cNorm = norm(costs[idx], minCost, maxCost);
-
-    // Cheapest: heavily weight cost; Fastest: heavily weight time
-    let score = preference === "cheapest"
-      ? 0.15 * tNorm + 0.85 * cNorm
-      : 0.85 * tNorm + 0.15 * cNorm;
-
-    // Apply mode bonuses based on the primary transport mode
-    const primaryMode = it.legs.find((l) =>
-      l.mode !== "rideshare" && l.mode !== "walk" && l.mode !== "transit"
-    )?.mode ?? it.legs[0]?.mode ?? "drive";
-
-    // Also check if itinerary has transit legs (first/last mile)
-    const hasTransit = it.legs.some((l) => l.mode === "transit");
-    const hasFlight = it.legs.some((l) => l.mode === "flight");
-
-    score += modeBonuses[primaryMode] ?? 0;
-    if (hasTransit) score += modeBonuses.transit;
-    if (preference === "fastest" && hasFlight && it.legs.filter((l) => l.mode !== "rideshare" && l.mode !== "walk" && l.mode !== "transit").length === 1) {
-      score -= 0.15; // extra bonus for direct flights in fastest mode
-    }
-
-    return { it, score };
-  });
-
-  scored.sort((a, b) => a.score - b.score);
-  return scored.slice(0, limit).map((s) => s.it);
+  return [...driveTransit, ...flights].slice(0, limit);
 }

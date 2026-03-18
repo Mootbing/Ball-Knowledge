@@ -4,8 +4,6 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Plane,
-  TrainFront,
-  BusFront,
   Bus,
   Car,
   Clock,
@@ -22,7 +20,7 @@ import Link from "next/link";
 // ── Types ──────────────────────────────────────────────────────────────────
 
 interface Leg {
-  mode: "bus" | "train" | "flight" | "drive" | "rideshare" | "walk" | "transit";
+  mode: "flight" | "drive" | "rideshare" | "transit";
   carrier?: string;
   routeName?: string;
   from: string;
@@ -49,8 +47,6 @@ interface Itinerary {
   legs: Leg[];
 }
 
-type Preference = "cheapest" | "fastest";
-
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function formatDuration(min: number): string {
@@ -68,8 +64,6 @@ function formatTime(iso: string): string {
 function modeIcon(mode: string) {
   switch (mode) {
     case "flight": return <Plane className="size-4" />;
-    case "train": return <TrainFront className="size-4" />;
-    case "bus": return <BusFront className="size-4" />;
     case "drive": return <Car className="size-4" />;
     case "rideshare": return <Car className="size-4" />;
     case "transit": return <Bus className="size-4" />;
@@ -79,8 +73,6 @@ function modeIcon(mode: string) {
 
 function modeColor(mode: string): string {
   switch (mode) {
-    case "bus": return "text-emerald-600";
-    case "train": return "text-blue-600";
     case "flight": return "text-violet-600";
     case "drive": return "text-gray-600";
     case "rideshare": return "text-gray-600";
@@ -91,8 +83,6 @@ function modeColor(mode: string): string {
 
 function modeBgColor(mode: string): string {
   switch (mode) {
-    case "bus": return "bg-emerald-50 text-emerald-700";
-    case "train": return "bg-blue-50 text-blue-700";
     case "flight": return "bg-violet-50 text-violet-700";
     case "drive": return "bg-gray-100 text-gray-700";
     case "rideshare": return "bg-gray-100 text-gray-700";
@@ -103,13 +93,10 @@ function modeBgColor(mode: string): string {
 
 function modeLabel(mode: string): string {
   switch (mode) {
-    case "bus": return "Bus";
-    case "train": return "Train";
     case "flight": return "Flight";
     case "drive": return "Drive";
     case "rideshare": return "Drive";
     case "transit": return "Transit";
-    case "walk": return "Walk";
     default: return mode;
   }
 }
@@ -162,9 +149,7 @@ function TakeMePage() {
   const time = searchParams.get("time") ?? "";
   const game = searchParams.get("game") ?? "";
 
-  const [preference, setPreference] = useState<Preference>("cheapest");
-  const [maxTransfers, setMaxTransfers] = useState(1);
-  const [resultLimit, setResultLimit] = useState(3);
+  const [resultLimit, setResultLimit] = useState(5);
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -177,7 +162,6 @@ function TakeMePage() {
     try {
       const params = new URLSearchParams({
         originLat, originLng, venue, venueLat, venueLng, date, time,
-        preference, maxTransfers: String(maxTransfers),
         limit: String(resultLimit),
       });
       const res = await fetch(`/api/take-me?${params}`);
@@ -189,7 +173,7 @@ function TakeMePage() {
     } finally {
       setLoading(false);
     }
-  }, [originLat, originLng, venue, venueLat, venueLng, date, time, preference, maxTransfers, resultLimit]);
+  }, [originLat, originLng, venue, venueLat, venueLng, date, time, resultLimit]);
 
   useEffect(() => { fetchItineraries(); }, [fetchItineraries]);
 
@@ -201,25 +185,16 @@ function TakeMePage() {
     return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${p}`;
   })() : "";
 
-  const prefs: { value: Preference; label: string }[] = [
-    { value: "cheapest", label: "Cheapest" },
-    { value: "fastest", label: "Fastest" },
-  ];
-
-
-  // Compute unique modes for each itinerary (merge drive/rideshare, exclude walk)
+  // Compute unique modes for each itinerary (merge drive/rideshare)
   const getMainModes = (it: Itinerary) =>
-    [...new Set(it.legs.filter((l) => l.mode !== "walk").map((l) => l.mode === "rideshare" ? "drive" : l.mode))];
-
-  const getTransferCount = (it: Itinerary) =>
-    Math.max(0, it.legs.filter((l) => l.mode !== "rideshare" && l.mode !== "walk" && l.mode !== "transit").length - 1);
+    [...new Set(it.legs.map((l) => l.mode === "rideshare" ? "drive" : l.mode))];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Header */}
       <header className="glass sticky top-0 z-10 px-4 py-3 border-b border-gray-200">
         <div className="max-w-3xl mx-auto">
-          <div className="flex items-center gap-3 mb-2">
+          <div className="flex items-center gap-3">
             <Link href="/" className="text-gray-400 hover:text-gray-600 transition-colors">
               <ArrowLeft className="size-5" />
             </Link>
@@ -228,25 +203,6 @@ function TakeMePage() {
               <p className="text-xs text-gray-500">
                 {dateDisplay} {timeDisplay && `· ${timeDisplay} EST`} {venue && `· ${venue}`}
               </p>
-            </div>
-          </div>
-
-          {/* Controls */}
-          <div className="flex flex-wrap gap-2 items-center">
-            <div className="flex flex-wrap gap-1">
-              {prefs.map((p) => (
-                <button
-                  key={p.value}
-                  onClick={() => setPreference(p.value)}
-                  className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-                    preference === p.value
-                      ? "bg-gray-900 text-white"
-                      : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
-                  }`}
-                >
-                  {p.label}
-                </button>
-              ))}
             </div>
           </div>
         </div>
@@ -258,7 +214,6 @@ function TakeMePage() {
           <div className="flex flex-col items-center justify-center py-20 text-gray-400">
             <Loader2 className="size-8 animate-spin mb-3" />
             <p className="text-sm">Finding routes...</p>
-            <p className="text-xs mt-1">First load may take a moment while transit data loads</p>
           </div>
         ) : error ? (
           <div className="text-center py-20">
@@ -271,14 +226,12 @@ function TakeMePage() {
           <div className="text-center py-20 text-gray-400">
             <Navigation className="size-8 mx-auto mb-3" />
             <p className="text-sm">No routes found</p>
-            <p className="text-xs mt-1">Try increasing max transfers or adjusting your preferences</p>
           </div>
         ) : (
           <div className="space-y-3">
             {itineraries.map((it) => {
               const isExpanded = expandedId === it.id;
               const mainModes = getMainModes(it);
-              const transferCount = getTransferCount(it);
 
               return (
                 <div
@@ -311,12 +264,6 @@ function TakeMePage() {
                           <span>{formatDuration(it.totalMinutes)}</span>
                           <span>·</span>
                           <span className="text-emerald-600 font-medium">~${it.totalCost}</span>
-                          {transferCount > 0 && (
-                            <>
-                              <span>·</span>
-                              <span>{transferCount} transfer{transferCount > 1 ? "s" : ""}</span>
-                            </>
-                          )}
                         </div>
                       </div>
 
@@ -423,20 +370,15 @@ function TakeMePage() {
                                       >
                                         Lyft <ArrowRight className="size-3" />
                                       </a>
-                                      {(() => {
-                                        const driveLink = leg.bookingUrl || `https://www.google.com/maps/dir/?api=1&origin=${leg.fromLat},${leg.fromLng}&destination=${leg.toLat},${leg.toLng}&travelmode=driving`;
-                                        return (
-                                        <a
-                                          href={driveLink}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 hover:opacity-80 transition-opacity"
-                                          onClick={(e) => e.stopPropagation()}
-                                        >
-                                          Drive <ArrowRight className="size-3" />
-                                        </a>
-                                        );
-                                      })()}
+                                      <a
+                                        href={leg.bookingUrl || `https://www.google.com/maps/dir/?api=1&origin=${leg.fromLat},${leg.fromLng}&destination=${leg.toLat},${leg.toLng}&travelmode=driving`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 hover:opacity-80 transition-opacity"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        Drive <ArrowRight className="size-3" />
+                                      </a>
                                     </div>
                                   ) : (
                                     <div className="flex gap-1.5 mt-1.5">
@@ -451,15 +393,6 @@ function TakeMePage() {
                                           Book <ArrowRight className="size-3" />
                                         </a>
                                       )}
-                                      <a
-                                        href={`https://www.google.com/maps/dir/?api=1&origin=${leg.fromLat},${leg.fromLng}&destination=${leg.toLat},${leg.toLng}&travelmode=transit`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 hover:opacity-80 transition-opacity"
-                                        onClick={(e) => e.stopPropagation()}
-                                      >
-                                        Directions <ArrowRight className="size-3" />
-                                      </a>
                                     </div>
                                   )}
                                 </div>
@@ -476,9 +409,6 @@ function TakeMePage() {
                           <div className="text-sm font-medium text-gray-900 flex items-center gap-2">
                             <MapPin className="size-4" />
                             Arrive at {venue}
-                            <span className="text-xs text-gray-500 font-normal">
-                              ({it.bufferMinutes}min before game)
-                            </span>
                           </div>
                         </div>
                       </div>
@@ -491,7 +421,7 @@ function TakeMePage() {
               onClick={() => setResultLimit((l) => l + 5)}
               className="w-full mt-3 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors"
             >
-              Request More
+              Show More Flights
             </button>
           </div>
         )}

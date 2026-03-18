@@ -822,19 +822,50 @@ export function BottomTray({
                         </div>
                       </td>}
                       {showAction && <td className="py-2 px-2">
-                        {userLocation && event.lat != null && event.est_time ? (
-                          <a
-                            href={`/take-me?originLat=${userLocation.lat}&originLng=${userLocation.lng}&venue=${encodeURIComponent(event.venue)}&venueLat=${event.lat}&venueLng=${event.lng}&date=${date}&time=${event.est_time}&game=${encodeURIComponent(event.name)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-medium hover:bg-emerald-100 transition-colors"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Navigation className="size-3" /> PLAN
-                          </a>
-                        ) : (
-                          <span className="text-[10px] text-gray-300">Set location</span>
-                        )}
+                        <div className="flex flex-col gap-1">
+                          {userLocation && event.lat != null && event.est_time ? (
+                            <a
+                              href={`/take-me?originLat=${userLocation.lat}&originLng=${userLocation.lng}&venue=${encodeURIComponent(event.venue)}&venueLat=${event.lat}&venueLng=${event.lng}&date=${date}&time=${event.est_time}&game=${encodeURIComponent(event.name)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-yellow-50 text-yellow-700 text-xs font-medium hover:bg-yellow-100 transition-colors"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Navigation className="size-3" /> PLAN
+                            </a>
+                          ) : (
+                            <span className="text-[10px] text-gray-300">Set location</span>
+                          )}
+                          {airports.length > 0 && (
+                            <div className="flex flex-col gap-1">
+                              {airports.map((apt) => (
+                                <a
+                                  key={apt.code}
+                                  href={`https://frontier-flight-search.vercel.app/?to=${apt.code}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 text-[10px] font-medium hover:bg-emerald-100 transition-colors"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <Plane className="size-2.5" />
+                                  {apt.code}
+                                </a>
+                              ))}
+                              {airports.length > 1 && (
+                                <a
+                                  href={`https://frontier-flight-search.vercel.app/?${airports.map((apt) => `to=${apt.code}`).join("&")}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[10px] font-semibold hover:bg-emerald-200 transition-colors"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <Plane className="size-2.5" />
+                                  All
+                                </a>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </td>}
                     </tr>
                   );
