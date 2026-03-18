@@ -48,14 +48,29 @@ export function StadiumCard({
   if (!venue || trayExpanded) return null;
 
   return (
-    <div className="fixed bottom-16 left-4 right-4 z-[15] flex justify-center pointer-events-none">
+    <div className="fixed bottom-16 right-4 z-[15] pointer-events-none">
       <div className="glass rounded-2xl p-4 max-w-lg w-full pointer-events-auto slide-up">
-        {/* Header */}
+        {/* Header — team matchup as title, venue as subtitle */}
         <div className="flex items-start justify-between mb-3">
-          <div>
-            <h3 className="font-semibold text-base text-gray-900">{venue.venue}</h3>
+          <div className="min-w-0">
+            {venue.games.map((game) => {
+              const parts = game.name.split(/\s+(?:vs?\.?|VS\.?)\s+/);
+              const home = parts[0];
+              const away = parts.length > 1 ? parts.slice(1).join(" vs ") : null;
+              return (
+                <h3 key={game.id} className="font-semibold text-base text-gray-900">
+                  {away ? (
+                    <>
+                      {away}{game.away_record && <span className="text-gray-400 text-xs font-normal ml-1">[{game.away_record}]</span>}
+                      {" @ "}
+                      {home}{game.home_record && <span className="text-gray-400 text-xs font-normal ml-1">[{game.home_record}]</span>}
+                    </>
+                  ) : game.name}
+                </h3>
+              );
+            })}
             <p className="text-xs text-gray-400">
-              {venue.city}, {venue.state}
+              {venue.venue} &middot; {venue.city}, {venue.state}
             </p>
           </div>
           <div className="flex items-center gap-1 -mt-1 -mr-1">
@@ -75,11 +90,10 @@ export function StadiumCard({
           </div>
         </div>
 
-        {/* Games */}
+        {/* Game details */}
         <div className="space-y-2.5">
           {venue.games.map((game) => {
             const parts = game.name.split(/\s+(?:vs?\.?|VS\.?)\s+/);
-            // TM names are "Home vs Away"
             const home = parts[0];
             const away = parts.length > 1 ? parts.slice(1).join(" vs ") : null;
             const price = formatPrice(game.min_price);
@@ -89,37 +103,26 @@ export function StadiumCard({
 
             return (
               <div key={game.id} className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="font-medium text-sm truncate text-gray-900">
-                    {away ? (
-                      <>
-                        {away}{game.away_record && <span className="text-gray-400 text-xs font-normal ml-1">[{game.away_record}]</span>}
-                        {" @ "}
-                        {home}{game.home_record && <span className="text-gray-400 text-xs font-normal ml-1">[{game.home_record}]</span>}
-                      </>
-                    ) : game.name}
-                  </p>
-                  <div className="flex items-center gap-2 text-xs text-gray-400">
-                    <Clock className="size-3" />
-                    {formatTimeEST(game.est_time)}
-                    {price && (
-                      <span className="text-emerald-600 font-mono">
-                        {price}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-2 text-xs text-gray-400">
+                  <Clock className="size-3" />
+                  {formatTimeEST(game.est_time)}
+                  {price && (
+                    <span className="text-emerald-600 font-mono">
+                      {price}
+                    </span>
+                  )}
                   {game.odds && kalshiUrl && (
                     <a
                       href={kalshiUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs font-mono text-emerald-600 hover:underline"
+                      className="font-mono text-emerald-600 hover:underline"
                     >
                       {game.odds.away_win}%-{game.odds.home_win}%
                     </a>
                   )}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
                   {away && (
                     <a
                       href={stubhubUrl(home)}

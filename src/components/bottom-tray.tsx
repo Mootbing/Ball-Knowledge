@@ -315,10 +315,9 @@ export function BottomTray({
             <table className="w-full text-sm">
               <thead className="sticky top-0 glass">
                 <tr className="text-xs text-gray-400 border-b border-gray-200">
-                  <th className="text-left py-2 px-2 font-medium">Odds</th>
                   <th className="text-left py-2 px-2 font-medium">
                     <button onClick={() => handleSort("spread")} className="flex items-center gap-0.5 hover:text-gray-600">
-                      Spread
+                      Odds
                       {sortKey === "spread" ? (sortDir === "asc" ? <ArrowUp className="size-2.5" /> : <ArrowDown className="size-2.5" />) : <ArrowUpDown className="size-2.5" />}
                     </button>
                   </th>
@@ -437,16 +436,10 @@ export function BottomTray({
                             <div className={event.odds.home_win > event.odds.away_win ? "text-emerald-600" : "text-gray-500"}>
                               H {event.odds.home_win}%
                             </div>
+                            <div className={Math.abs(event.odds.away_win - event.odds.home_win) <= 10 ? "text-amber-600 font-semibold" : "text-gray-400"}>
+                              ±{Math.abs(event.odds.away_win - event.odds.home_win)}%
+                            </div>
                           </>
-                        ) : (
-                          <span className="text-gray-300">--</span>
-                        )}
-                      </td>
-                      <td className="py-2 px-2 text-xs font-mono text-center">
-                        {event.odds ? (
-                          <span className={Math.abs(event.odds.away_win - event.odds.home_win) <= 10 ? "text-amber-600 font-semibold" : "text-gray-500"}>
-                            {Math.abs(event.odds.away_win - event.odds.home_win)}%
-                          </span>
                         ) : (
                           <span className="text-gray-300">--</span>
                         )}
@@ -727,6 +720,18 @@ export function BottomTray({
                               onClick={(e) => e.stopPropagation()}
                             >
                               StubHub
+                              <ArrowUpRight className="size-3" />
+                            </a>
+                          )}
+                          {event.espn_price?.url && (
+                            <a
+                              href={event.espn_price.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-0.5 text-gray-500 hover:text-gray-800"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              VividSeats
                               <ArrowUpRight className="size-3" />
                             </a>
                           )}
