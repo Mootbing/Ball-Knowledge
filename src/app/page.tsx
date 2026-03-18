@@ -204,6 +204,7 @@ export default function Home() {
           onRouteFocus={handleRouteFocus}
           trayState={trayState}
           onTrayStateChange={handleTrayStateChange}
+          userLocation={userLocation}
         />
       )}
 

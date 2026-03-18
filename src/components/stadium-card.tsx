@@ -19,6 +19,11 @@ function formatTimeEST(time: string | null) {
   return `${hour12}:${String(m).padStart(2, "0")} ${period}`;
 }
 
+function stubhubUrl(teamName: string): string {
+  const slug = teamName.replace(/\s*\(.*?\)/g, "").trim().toLowerCase().replace(/\s+/g, "-");
+  return `https://www.stubhub.com/${slug}-tickets`;
+}
+
 function formatPrice(price: { amount: number; currency: string } | null) {
   if (!price) return null;
   return new Intl.NumberFormat("en-US", {
@@ -106,6 +111,16 @@ export function StadiumCard({
                       className="text-xs font-mono text-emerald-600 hover:underline"
                     >
                       {game.odds.home_win}%-{game.odds.away_win}%
+                    </a>
+                  )}
+                  {home && (
+                    <a
+                      href={stubhubUrl(home)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-xs text-blue-500 hover:underline"
+                    >
+                      StubHub <ExternalLink className="size-3" />
                     </a>
                   )}
                   <a

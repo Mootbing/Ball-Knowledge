@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RouteFocus, TransitStop, VenueInfo } from "./game-map";
 import {
   ChevronUp,
@@ -14,6 +14,9 @@ import {
   BusFront,
   ArrowUpRight,
   RefreshCw,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 
 type TrayState = "collapsed" | "half";
@@ -56,9 +59,28 @@ function formatDriveTime(minutes: number): string {
   return m > 0 ? `${h}h${m}m` : `${h}h`;
 }
 
+function stubhubUrl(teamName: string): string {
+  const slug = teamName.replace(/\s*\(.*?\)/g, "").trim().toLowerCase().replace(/\s+/g, "-");
+  return `https://www.stubhub.com/${slug}-tickets`;
+}
+
 function gmapsUrl(fromLat: number, fromLng: number, toLat: number, toLng: number, mode: "driving" | "transit") {
   return `https://www.google.com/maps/dir/?api=1&origin=${fromLat},${fromLng}&destination=${toLat},${toLng}&travelmode=${mode}`;
 }
+
+function haversineMiles(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const R = 3958.8; // Earth radius in miles
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+type SortKey = "game" | "time" | "distance" | null;
+type SortDir = "asc" | "desc";
 
 function formatDateHeading(dateStr: string) {
   const [y, m, d] = dateStr.split("-").map(Number);
@@ -78,6 +100,7 @@ export function BottomTray({
   onRouteFocus,
   trayState,
   onTrayStateChange,
+  userLocation,
 }: {
   games: GameEvent[];
   date: string;
@@ -86,11 +109,68 @@ export function BottomTray({
   onRouteFocus: (focus: RouteFocus | null) => void;
   trayState: TrayState;
   onTrayStateChange: (state: TrayState) => void;
+  userLocation: { lat: number; lng: number } | null;
 }) {
   const dragStartY = useRef(0);
   const isDragging = useRef(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const prevTrayState = useRef(trayState);
+
+  const [sortKey, setSortKey] = useState<SortKey>(null);
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+  // Precompute distances
+  const distanceMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    if (!userLocation) return map;
+    for (const g of games) {
+      if (g.lat != null && g.lng != null) {
+        map[g.id] = haversineMiles(userLocation.lat, userLocation.lng, g.lat, g.lng);
+      }
+    }
+    return map;
+  }, [games, userLocation]);
+
+  const handleSort = useCallback((key: SortKey) => {
+    if (key === "distance" && !userLocation) return;
+    setSortKey((prev) => {
+      if (prev === key) {
+        setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+        return prev;
+      }
+      setSortDir("asc");
+      return key;
+    });
+  }, [userLocation]);
+
+  const sortedGames = useMemo(() => {
+    if (!sortKey) return games;
+    const sorted = [...games].sort((a, b) => {
+      let cmp = 0;
+      switch (sortKey) {
+        case "game": {
+          const nameA = a.name.toLowerCase();
+          const nameB = b.name.toLowerCase();
+          cmp = nameA.localeCompare(nameB);
+          break;
+        }
+        case "time": {
+          const tA = a.est_time ?? "99:99";
+          const tB = b.est_time ?? "99:99";
+          cmp = tA.localeCompare(tB);
+          break;
+        }
+        case "distance": {
+          const dA = distanceMap[a.id] ?? Infinity;
+          const dB = distanceMap[b.id] ?? Infinity;
+          cmp = dA - dB;
+          break;
+        }
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return sorted;
+  }, [games, sortKey, sortDir, distanceMap]);
 
   // Enriched travel times: key = "venueLat,venueLng;stationLat,stationLng"
   const [enriched, setEnriched] = useState<Record<string, { driveMinutes: number; transitMinutes: number | null }>>({});
@@ -213,9 +293,24 @@ export function BottomTray({
               <thead className="sticky top-0 glass">
                 <tr className="text-xs text-gray-400 border-b border-gray-200">
                   <th className="text-left py-2 px-2 font-medium">Odds</th>
-                  <th className="text-left py-2 px-2 font-medium">Game</th>
-                  <th className="text-left py-2 px-2 font-medium">Time</th>
-                  <th className="text-left py-2 px-2 font-medium">Venue</th>
+                  <th className="text-left py-2 px-2 font-medium">
+                    <button onClick={() => handleSort("game")} className="flex items-center gap-0.5 hover:text-gray-600">
+                      Game
+                      {sortKey === "game" ? (sortDir === "asc" ? <ArrowUp className="size-2.5" /> : <ArrowDown className="size-2.5" />) : <ArrowUpDown className="size-2.5" />}
+                    </button>
+                  </th>
+                  <th className="text-left py-2 px-2 font-medium">
+                    <button onClick={() => handleSort("time")} className="flex items-center gap-0.5 hover:text-gray-600">
+                      Time
+                      {sortKey === "time" ? (sortDir === "asc" ? <ArrowUp className="size-2.5" /> : <ArrowDown className="size-2.5" />) : <ArrowUpDown className="size-2.5" />}
+                    </button>
+                  </th>
+                  <th className="text-left py-2 px-2 font-medium">
+                    <button onClick={() => handleSort("distance")} className={`flex items-center gap-0.5 ${userLocation ? "hover:text-gray-600" : "opacity-40 cursor-not-allowed"}`} title={userLocation ? "Sort by distance" : "Set location to sort by distance"}>
+                      Venue
+                      {sortKey === "distance" ? (sortDir === "asc" ? <ArrowUp className="size-2.5" /> : <ArrowDown className="size-2.5" />) : <ArrowUpDown className="size-2.5" />}
+                    </button>
+                  </th>
                   <th className="text-left py-2 px-2 font-medium">
                     <span className="flex items-center gap-1">
                       Airports
@@ -244,7 +339,7 @@ export function BottomTray({
                 </tr>
               </thead>
               <tbody>
-                {games.map((event) => {
+                {sortedGames.map((event) => {
                   const parts = event.name.split(/\s+(?:vs?\.?|VS\.?)\s+/);
                   const away = parts[0];
                   const home = parts.length > 1 ? parts.slice(1).join(" vs ") : null;
@@ -329,6 +424,11 @@ export function BottomTray({
                         <span className="flex items-center gap-1">
                           <MapPin className="size-3" />
                           {event.venue}
+                          {distanceMap[event.id] != null && (
+                            <span className="text-[10px] text-gray-400">
+                              ({Math.round(distanceMap[event.id])} mi)
+                            </span>
+                          )}
                         </span>
                         <span className="text-[10px] text-gray-400">
                           {event.city}, {event.state}
@@ -520,6 +620,18 @@ export function BottomTray({
                             Ticketmaster
                             <ArrowUpRight className="size-3" />
                           </a>
+                          {home && (
+                            <a
+                              href={stubhubUrl(home)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-0.5 text-gray-500 hover:text-gray-800"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              StubHub
+                              <ArrowUpRight className="size-3" />
+                            </a>
+                          )}
                           {kalshiUrl && (
                             <a
                               href={kalshiUrl}
