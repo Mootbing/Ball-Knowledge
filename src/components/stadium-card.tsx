@@ -8,6 +8,7 @@ import {
   TrainFront,
   BusFront,
   ExternalLink,
+  Maximize2,
 } from "lucide-react";
 
 function formatTimeEST(time: string | null) {
@@ -31,10 +32,12 @@ function formatPrice(price: { amount: number; currency: string } | null) {
 export function StadiumCard({
   venue,
   onClose,
+  onExpand,
   trayExpanded,
 }: {
   venue: VenueInfo | null;
   onClose: () => void;
+  onExpand: () => void;
   trayExpanded: boolean;
 }) {
   if (!venue || trayExpanded) return null;
@@ -50,12 +53,21 @@ export function StadiumCard({
               {venue.city}, {venue.state}
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-lg hover:bg-black/5 transition-colors -mt-1 -mr-1"
-          >
-            <X className="size-4 text-gray-500" />
-          </button>
+          <div className="flex items-center gap-1 -mt-1 -mr-1">
+            <button
+              onClick={onExpand}
+              className="p-1 rounded-lg hover:bg-black/5 transition-colors"
+              title="Show details"
+            >
+              <Maximize2 className="size-4 text-gray-500" />
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1 rounded-lg hover:bg-black/5 transition-colors"
+            >
+              <X className="size-4 text-gray-500" />
+            </button>
+          </div>
         </div>
 
         {/* Games */}
@@ -121,7 +133,7 @@ export function StadiumCard({
                   {venue.airports.length === 1 ? (
                     <span className="font-mono font-semibold">{venue.airports[0].code}</span>
                   ) : (
-                    <span>{venue.airports.length} airports nearby</span>
+                    <span>{venue.airports.length} nearby</span>
                   )}
                 </span>
               )}
@@ -131,7 +143,7 @@ export function StadiumCard({
                   {venue.trains.length === 1 ? (
                     <span className="font-mono font-semibold">{venue.trains[0].code}</span>
                   ) : (
-                    <span>{venue.trains.length} train stations nearby</span>
+                    <span>{venue.trains.length} nearby</span>
                   )}
                 </span>
               )}
@@ -141,7 +153,7 @@ export function StadiumCard({
                   {venue.buses.length === 1 ? (
                     <span className="font-mono font-semibold">{venue.buses[0].code}</span>
                   ) : (
-                    <span>{venue.buses.length} bus stations nearby</span>
+                    <span>{venue.buses.length} nearby</span>
                   )}
                 </span>
               )}
