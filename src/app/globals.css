@@ -125,13 +125,11 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply text-foreground overflow-hidden;
+    @apply text-foreground;
     background: transparent;
   }
   html {
     @apply font-sans;
-    height: 100dvh;
-    overflow: hidden;
   }
 }
 
