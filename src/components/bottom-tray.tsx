@@ -587,7 +587,7 @@ export function BottomTray({
                           <span className={`font-mono text-sm font-semibold ${price < 30 ? "text-[--color-price]" : "text-foreground"}`}>${price}</span>
                         )}
                         {event.espn_price?.available != null && event.espn_price.available > 0 && (
-                          <span className="font-mono text-[10px] text-[--color-dim]">{event.espn_price.available} avl</span>
+                          <span className="font-mono text-[10px] text-[--color-dim]">{event.espn_price.available}<br/>available</span>
                         )}
                       </div>
                       {/* Col: Records */}
