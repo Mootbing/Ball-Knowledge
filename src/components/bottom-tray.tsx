@@ -185,7 +185,7 @@ function TransitCards({
                       href={uberDeepLink(vLat, vLng, stop.lat, stop.lng)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 bg-[#191919] text-[--color-price] font-semibold hover:bg-[#2a2a2a] transition-colors no-underline border border-white/10"
+                      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 bg-[#191919] text-emerald-400 font-semibold hover:bg-[#2a2a2a] transition-colors no-underline border border-white/10"
                       onClick={(e) => e.stopPropagation()}
                     >
                       UBER ~&lt;{extractUpperBound(times.uberEstimate)}
@@ -196,7 +196,7 @@ function TransitCards({
                       href={lyftDeepLink(vLat, vLng, stop.lat, stop.lng)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 bg-[#d4004c] text-[--color-price] font-semibold hover:bg-[#e0105a] transition-colors no-underline"
+                      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 bg-[#d4004c] text-emerald-400 font-semibold hover:bg-[#e0105a] transition-colors no-underline"
                       onClick={(e) => e.stopPropagation()}
                     >
                       LYFT ~&lt;{extractUpperBound(times.lyftEstimate)}
@@ -591,7 +591,7 @@ export function BottomTray({
                       {/* Col: Ticket */}
                       <div className="flex flex-col items-start shrink-0 gap-0.5 min-w-[2.5rem]">
                         {price != null && (
-                          <span className={`font-mono text-sm font-semibold ${price < 30 ? "text-[--color-price]" : "text-foreground"}`}>${price}</span>
+                          <span className={`font-mono text-sm font-semibold ${price < 30 ? "text-emerald-400" : "text-foreground"}`}>${price}</span>
                         )}
                         {event.espn_price?.available != null && event.espn_price.available > 0 && (
                           <span className="font-mono text-[10px] text-[--color-dim]">{event.espn_price.available}<br/>available</span>
@@ -731,7 +731,7 @@ export function BottomTray({
                               </a>
                               <a
                                 href={`/flights?to=${apt.code}${nearestUserAirport ? `&from=${nearestUserAirport}` : ""}&date=${date}`}
-                                className="ml-0.5 inline-flex items-center justify-center w-4 h-4 rounded bg-[--color-price]/20 text-[--color-price] text-[8px] font-black hover:bg-[--color-price]/30 transition-colors leading-none"
+                                className="ml-0.5 inline-flex items-center justify-center w-4 h-4 rounded bg-emerald-400/20 text-emerald-400 text-[8px] font-black hover:bg-emerald-400/30 transition-colors leading-none"
                                 title="Frontier flights"
                               >
                                 F

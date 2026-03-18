@@ -110,7 +110,7 @@ function LayoverSection({
 }) {
   const [open, setOpen] = useState(layovers < 2);
   const badgeClass = layovers === 0
-    ? "bg-[--color-price]/10 text-[--color-price] border border-[--color-price]/20"
+    ? "bg-emerald-400/10 text-emerald-400 border border-emerald-400/20"
     : "bg-white/5 text-[--color-dim] border border-white/10";
 
   return (
@@ -191,7 +191,7 @@ function RouteGroupCard({
               <span className="text-[--color-dim]">→</span>
               <span className={`font-mono text-lg font-black ${booked ? "text-[--color-dim]" : "text-foreground"}`}>{toIata}</span>
               {booked && (
-                <span className="text-xs font-mono text-[--color-price] bg-[--color-price]/10 border border-[--color-price]/20 px-1.5 py-0.5 rounded">LOOKED</span>
+                <span className="text-xs font-mono text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 px-1.5 py-0.5 rounded">LOOKED</span>
               )}
             </div>
             <p className="text-xs font-mono text-[--color-dim] mt-0.5 truncate">
@@ -450,7 +450,7 @@ function FlightsContent() {
                       const baseClass = n === 0
                         ? hidden
                           ? "bg-white/5 text-[--color-dim]/40 border-white/5 line-through"
-                          : "bg-[--color-price]/10 text-[--color-price] border-[--color-price]/20"
+                          : "bg-emerald-400/10 text-emerald-400 border-emerald-400/20"
                         : hidden
                           ? "bg-white/5 text-[--color-dim]/40 border-white/5 line-through"
                           : "bg-white/5 text-[--color-dim] border-white/10";
@@ -473,7 +473,7 @@ function FlightsContent() {
             {selectedPath && (
               <div className="mb-3 px-3 py-2 panel-inset rounded flex items-center gap-4 text-xs font-mono text-[--color-dim]">
                 <span className="flex items-center gap-1.5">
-                  <span className="inline-block w-3 h-3 rounded-full bg-[--color-price] ring-2 ring-[#0a0a0f]" />
+                  <span className="inline-block w-3 h-3 rounded-full bg-emerald-400 ring-2 ring-[#0a0a0f]" />
                   Origin
                 </span>
                 {selectedPath.layovers > 0 && (

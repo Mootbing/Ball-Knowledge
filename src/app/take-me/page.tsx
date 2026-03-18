@@ -970,13 +970,14 @@ function TakeMePage() {
                         <div className="flex items-center gap-2 text-xs font-mono text-[--color-dim] mt-0.5">
                           <span>{formatDuration(displayTotalMinutes)}</span>
                           <span>·</span>
-                          {it.totalCost != null ? (
-                            <span className="text-[--color-price] font-semibold">
-                              ~&lt;${it.totalCost}
-                            </span>
-                          ) : (
-                            <span className="text-[--color-dim] italic">est</span>
-                          )}
+                          {(() => {
+                            const cost = it.totalCost ?? it.legs.reduce((s, l) => s + (l.cost ?? 0), 0);
+                            return (
+                              <span className="text-emerald-400 font-semibold">
+                                ~&lt;${cost}
+                              </span>
+                            );
+                          })()}
                           {it.legs.length > 1 && (
                             <>
                               <span>·</span>
@@ -1178,7 +1179,7 @@ function TakeMePage() {
                                           {enrichData.uberEstimate && (
                                             <>
                                               <span>·</span>
-                                              <span className="text-[--color-price]">
+                                              <span className="text-emerald-400">
                                                 UBER ~&lt;{extractUpperBound(enrichData.uberEstimate)}
                                               </span>
                                             </>
@@ -1186,7 +1187,7 @@ function TakeMePage() {
                                           {enrichData.lyftEstimate && (
                                             <>
                                               <span>·</span>
-                                              <span className="text-[--color-price]">
+                                              <span className="text-emerald-400">
                                                 LYFT ~&lt;{extractUpperBound(enrichData.lyftEstimate)}
                                               </span>
                                             </>
@@ -1197,7 +1198,7 @@ function TakeMePage() {
                                         enrichData?.transitFare && (
                                           <>
                                             <span>·</span>
-                                            <span className="text-[--color-price]">
+                                            <span className="text-emerald-400">
                                               {enrichData.transitFare}
                                             </span>
                                           </>
@@ -1207,7 +1208,7 @@ function TakeMePage() {
                                         leg.cost > 0 && (
                                           <>
                                             <span>·</span>
-                                            <span className="text-[--color-price]">
+                                            <span className="text-emerald-400">
                                               ~${leg.cost}
                                             </span>
                                           </>
