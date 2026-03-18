@@ -25,6 +25,26 @@
         "lat": 34.288897,
         "lng": -83.819694
       }
+    ],
+    "busStations": [
+      {
+        "code": "ATD6",
+        "name": "Atlanta Bus Station",
+        "lat": 33.748253,
+        "lng": -84.39657
+      },
+      {
+        "code": "4AT",
+        "name": "Atlanta Downtown (Civic Center)",
+        "lat": 33.76667,
+        "lng": -84.387502
+      },
+      {
+        "code": "4LX",
+        "name": "Atlanta Airport",
+        "lat": 33.640833,
+        "lng": -84.446276
+      }
     ]
   },
   "TD Garden": {
@@ -58,6 +78,26 @@
         "name": "Boston",
         "lat": 42.347317,
         "lng": -71.075828
+      }
+    ],
+    "busStations": [
+      {
+        "code": "BOS6",
+        "name": "Boston (South Station)",
+        "lat": 42.350469,
+        "lng": -71.05618
+      },
+      {
+        "code": "6BI",
+        "name": "Brookline",
+        "lat": 42.342586,
+        "lng": -71.122005
+      },
+      {
+        "code": "6CM",
+        "name": "Cambridge (MA)",
+        "lat": 42.394018,
+        "lng": -71.141704
       }
     ]
   },
@@ -111,6 +151,26 @@
         "lat": 40.696618,
         "lng": -74.18229
       }
+    ],
+    "busStations": [
+      {
+        "code": "6NY",
+        "name": "New York City Chinatown (28 Allen St)",
+        "lat": 40.715652,
+        "lng": -73.991992
+      },
+      {
+        "code": "6CLS",
+        "name": "New York City Chinatown (Bowery & Canal St)",
+        "lat": 40.716388,
+        "lng": -73.995619
+      },
+      {
+        "code": "6BRO",
+        "name": "Brooklyn (3 Av/38th St)",
+        "lat": 40.654604,
+        "lng": -74.007738
+      }
     ]
   },
   "Spectrum Center": {
@@ -144,6 +204,26 @@
         "name": "Kannapolis",
         "lat": 35.496172,
         "lng": -80.624928
+      }
+    ],
+    "busStations": [
+      {
+        "code": "CLT6",
+        "name": "Charlotte Bus Station",
+        "lat": 35.230519,
+        "lng": -80.848717
+      },
+      {
+        "code": "4HR",
+        "name": "Charlotte (Freedom Dr/Ashley Rd)",
+        "lat": 35.245171,
+        "lng": -80.895279
+      },
+      {
+        "code": "GTS6",
+        "name": "Gastonia Transit",
+        "lat": 35.264299,
+        "lng": -81.180141
       }
     ]
   },
@@ -185,6 +265,26 @@
         "lat": 41.815634,
         "lng": -87.871545
       }
+    ],
+    "busStations": [
+      {
+        "code": "CHD6",
+        "name": "Chicago Bus Station",
+        "lat": 41.874847,
+        "lng": -87.643517
+      },
+      {
+        "code": "CHK6",
+        "name": "Chicago Train Station",
+        "lat": 41.877999,
+        "lng": -87.640673
+      },
+      {
+        "code": "CUA6",
+        "name": "Chicago (Cumberland Farms)",
+        "lat": 41.983843,
+        "lng": -87.839304
+      }
     ]
   },
   "Rocket Mortgage FieldHouse": {
@@ -218,6 +318,26 @@
         "name": "Alliance Amtrak",
         "lat": 40.921275,
         "lng": -81.092904
+      }
+    ],
+    "busStations": [
+      {
+        "code": "CLV6",
+        "name": "Cleveland Downtown (E 12th St)",
+        "lat": 41.504431,
+        "lng": -81.68717
+      },
+      {
+        "code": "CLD6",
+        "name": "Cleveland Bus Station",
+        "lat": 41.50354,
+        "lng": -81.682877
+      },
+      {
+        "code": "ERY6",
+        "name": "Lorain County Transportation & CS",
+        "lat": 41.368482,
+        "lng": -82.102905
       }
     ]
   },
@@ -259,6 +379,26 @@
         "lat": 32.349743,
         "lng": -97.382333
       }
+    ],
+    "busStations": [
+      {
+        "code": "2DA",
+        "name": "Downtown Dallas / Deep Ellum",
+        "lat": 32.784989,
+        "lng": -96.79006
+      },
+      {
+        "code": "2DM",
+        "name": "Dallas Market Center",
+        "lat": 32.815523,
+        "lng": -96.86638
+      },
+      {
+        "code": "DLD6",
+        "name": "Dallas Bus Station",
+        "lat": 32.853309,
+        "lng": -96.879878
+      }
     ]
   },
   "Ball Arena": {
@@ -293,6 +433,26 @@
         "lat": 39.887584,
         "lng": -105.763245
       }
+    ],
+    "busStations": [
+      {
+        "code": "DEN6",
+        "name": "Denver Union Station Bus Concourse",
+        "lat": 39.75392,
+        "lng": -105.00111
+      },
+      {
+        "code": "IHP6",
+        "name": "Idaho Springs Bus Stop",
+        "lat": 39.741729,
+        "lng": -105.519297
+      },
+      {
+        "code": "FON6",
+        "name": "Harmony Transfer Centre",
+        "lat": 40.52418,
+        "lng": -104.99469
+      }
     ]
   },
   "Little Caesars Arena": {
@@ -326,6 +486,26 @@
         "name": "Royal Oak Amtrak",
         "lat": 42.488439,
         "lng": -83.14701
+      }
+    ],
+    "busStations": [
+      {
+        "code": "DET6",
+        "name": "Detroit Bus Station",
+        "lat": 42.327847,
+        "lng": -83.058373
+      },
+      {
+        "code": "7WI",
+        "name": "Windsor (International Transit Centre)",
+        "lat": 42.317964,
+        "lng": -83.042982
+      },
+      {
+        "code": "SHF6",
+        "name": "Southfield Bus Stop",
+        "lat": 42.486454,
+        "lng": -83.262073
       }
     ]
   },
@@ -373,6 +553,26 @@
         "lat": 37.840474,
         "lng": -122.291615
       }
+    ],
+    "busStations": [
+      {
+        "code": "USF",
+        "name": "San Francisco (5th/Townsend)",
+        "lat": 37.775168,
+        "lng": -122.397317
+      },
+      {
+        "code": "SFD6",
+        "name": "San Francisco Bus Station",
+        "lat": 37.790226,
+        "lng": -122.396855
+      },
+      {
+        "code": "OAK",
+        "name": "Oakland (West Oakland Bart Station)",
+        "lat": 37.805162,
+        "lng": -122.294484
+      }
     ]
   },
   "Toyota Center": {
@@ -394,6 +594,26 @@
         "name": "Houston",
         "lat": 29.767245,
         "lng": -95.367526
+      }
+    ],
+    "busStations": [
+      {
+        "code": "2HO",
+        "name": "Downtown Houston (Gray St.)",
+        "lat": 29.75093,
+        "lng": -95.37448
+      },
+      {
+        "code": "2HU",
+        "name": "Houston Uptown/Upper Kirby",
+        "lat": 29.729877,
+        "lng": -95.41838
+      },
+      {
+        "code": "HOU6",
+        "name": "Houston Bus Station (Greyhound)",
+        "lat": 29.735379,
+        "lng": -95.301864
       }
     ]
   },
@@ -428,6 +648,26 @@
         "name": "Connersville Amtrak",
         "lat": 39.645969,
         "lng": -85.13338
+      }
+    ],
+    "busStations": [
+      {
+        "code": "5IN",
+        "name": "Indianapolis (E Washington St)",
+        "lat": 39.76709,
+        "lng": -86.153802
+      },
+      {
+        "code": "IND6",
+        "name": "Indianapolis Bus Station",
+        "lat": 39.761784,
+        "lng": -86.161018
+      },
+      {
+        "code": "7IO",
+        "name": "Indianapolis Northeast (E 38th St)",
+        "lat": 39.82606,
+        "lng": -86.027666
       }
     ]
   },
@@ -481,6 +721,26 @@
         "lat": 34.178925,
         "lng": -118.311829
       }
+    ],
+    "busStations": [
+      {
+        "code": "USC",
+        "name": "Los Angeles (Hope St/Jefferson Blvd - University of Southern California )",
+        "lat": 34.01959,
+        "lng": -118.278295
+      },
+      {
+        "code": "LUN6",
+        "name": "Los Angeles Union Station Arrivals",
+        "lat": 34.055104,
+        "lng": -118.237056
+      },
+      {
+        "code": "LAD6",
+        "name": "Los Angeles Union Station",
+        "lat": 34.055137,
+        "lng": -118.233135
+      }
     ]
   },
   "Intuit Dome": {
@@ -533,6 +793,26 @@
         "lat": 34.068772,
         "lng": -118.448979
       }
+    ],
+    "busStations": [
+      {
+        "code": "USC",
+        "name": "Los Angeles (Hope St/Jefferson Blvd - University of Southern California )",
+        "lat": 34.01959,
+        "lng": -118.278295
+      },
+      {
+        "code": "UHP",
+        "name": "Huntington Park",
+        "lat": 33.974408,
+        "lng": -118.227985
+      },
+      {
+        "code": "0RE",
+        "name": "Torrance, CA",
+        "lat": 33.842012,
+        "lng": -118.329889
+      }
     ]
   },
   "FedExForum": {
@@ -560,6 +840,26 @@
         "name": "Marks Amtrak",
         "lat": 34.258227,
         "lng": -90.272342
+      }
+    ],
+    "busStations": [
+      {
+        "code": "MEM6",
+        "name": "Memphis Bus Station",
+        "lat": 35.061762,
+        "lng": -89.992849
+      },
+      {
+        "code": "MKM6",
+        "name": "Marked Tree (Jordans Quick Stop)",
+        "lat": 35.531021,
+        "lng": -90.427298
+      },
+      {
+        "code": "FRY6",
+        "name": "Forrest City (McDonald's)",
+        "lat": 35.031442,
+        "lng": -90.790112
       }
     ]
   },
@@ -607,6 +907,26 @@
         "lat": 26.119256,
         "lng": -80.17
       }
+    ],
+    "busStations": [
+      {
+        "code": "4DM",
+        "name": "Downtown Miami",
+        "lat": 25.7782,
+        "lng": -80.1868
+      },
+      {
+        "code": "MID6",
+        "name": "Miami Intermodal Center",
+        "lat": 25.79722,
+        "lng": -80.2576
+      },
+      {
+        "code": "4SB",
+        "name": "Miami Beach",
+        "lat": 25.813276,
+        "lng": -80.122939
+      }
     ]
   },
   "Fiserv Forum": {
@@ -640,6 +960,26 @@
         "name": "Sturtevant Amtrak Station",
         "lat": 42.718292,
         "lng": -87.9063
+      }
+    ],
+    "busStations": [
+      {
+        "code": "MKE6",
+        "name": "Milwaukee Intermodal Station",
+        "lat": 43.034447,
+        "lng": -87.918228
+      },
+      {
+        "code": "5MK",
+        "name": "Milwaukee Mitchell Airport",
+        "lat": 42.947282,
+        "lng": -87.902927
+      },
+      {
+        "code": "5WG",
+        "name": "Goerke's Corners Park & Ride",
+        "lat": 43.034772,
+        "lng": -88.167725
       }
     ]
   },
@@ -675,6 +1015,26 @@
         "lat": 45.567748,
         "lng": -94.149093
       }
+    ],
+    "busStations": [
+      {
+        "code": "MSD6",
+        "name": "Minneapolis Bus Station",
+        "lat": 44.9811,
+        "lng": -93.2758
+      },
+      {
+        "code": "STP6",
+        "name": "Saint Paul Union Depot",
+        "lat": 44.947587,
+        "lng": -93.085607
+      },
+      {
+        "code": "5HU",
+        "name": "Hudson (WI)",
+        "lat": 44.964673,
+        "lng": -92.722641
+      }
     ]
   },
   "Smoothie King Center": {
@@ -708,6 +1068,26 @@
         "name": "Hammond Amtrak Station",
         "lat": 30.50718,
         "lng": -90.462169
+      }
+    ],
+    "busStations": [
+      {
+        "code": "NOD6",
+        "name": "New Orleans Bus Station",
+        "lat": 29.946167,
+        "lng": -90.078613
+      },
+      {
+        "code": "NOA6",
+        "name": "New Orleans International Airport",
+        "lat": 29.985341,
+        "lng": -90.257175
+      },
+      {
+        "code": "SLI6",
+        "name": "Slidell (Fremaux Quick Stop)",
+        "lat": 30.277494,
+        "lng": -89.775802
       }
     ]
   },
@@ -755,6 +1135,26 @@
         "lat": 40.696618,
         "lng": -74.18229
       }
+    ],
+    "busStations": [
+      {
+        "code": "6MT",
+        "name": "New York Midtown (31st St & 8th Ave)",
+        "lat": 40.750309,
+        "lng": -73.995269
+      },
+      {
+        "code": "NWY6",
+        "name": "New York Midtown West",
+        "lat": 40.75253,
+        "lng": -73.98979
+      },
+      {
+        "code": "NYD6",
+        "name": "New York Port Authority",
+        "lat": 40.75695,
+        "lng": -73.9905
+      }
     ]
   },
   "Paycom Center": {
@@ -794,6 +1194,26 @@
         "name": "Purcell Amtrak Station",
         "lat": 35.012033,
         "lng": -97.357416
+      }
+    ],
+    "busStations": [
+      {
+        "code": "OKL6",
+        "name": "Oklahoma City Bus Station",
+        "lat": 35.463758,
+        "lng": -97.477415
+      },
+      {
+        "code": "NMN6",
+        "name": "Norman (Sinclair Masters Oil)",
+        "lat": 35.218026,
+        "lng": -97.473179
+      },
+      {
+        "code": "CCK6",
+        "name": "Chickasha Travel Plaza",
+        "lat": 35.05957,
+        "lng": -97.96196
       }
     ]
   },
@@ -835,6 +1255,26 @@
         "lat": 28.293835,
         "lng": -81.404234
       }
+    ],
+    "busStations": [
+      {
+        "code": "ORL6",
+        "name": "Orlando Bus Station",
+        "lat": 28.547819,
+        "lng": -81.412781
+      },
+      {
+        "code": "4OF",
+        "name": "Orlando (The Florida Mall)",
+        "lat": 28.446548,
+        "lng": -81.399686
+      },
+      {
+        "code": "KSM6",
+        "name": "Kissimmee",
+        "lat": 28.345392,
+        "lng": -81.364732
+      }
     ]
   },
   "Wells Fargo Center": {
@@ -875,6 +1315,26 @@
         "lat": 40.008278,
         "lng": -75.290399
       }
+    ],
+    "busStations": [
+      {
+        "code": "PSD6",
+        "name": "Philadelphia (Schuylkill & Walnut)",
+        "lat": 39.95258,
+        "lng": -75.18212
+      },
+      {
+        "code": "CDN6",
+        "name": "Camden Walter Rand Trans Center",
+        "lat": 39.943277,
+        "lng": -75.118591
+      },
+      {
+        "code": "6MK",
+        "name": "Philadelphia",
+        "lat": 39.96072,
+        "lng": -75.141096
+      }
     ]
   },
   "Footprint Center": {
@@ -908,6 +1368,26 @@
         "name": "North Phoenix Metro Center Transit Station",
         "lat": 33.639498,
         "lng": -112.119188
+      }
+    ],
+    "busStations": [
+      {
+        "code": "PHX6",
+        "name": "Phoenix Bus Station",
+        "lat": 33.435899,
+        "lng": -112.035612
+      },
+      {
+        "code": "UPX6",
+        "name": "Phoenix Sky Harbor Airport/44th Street Station",
+        "lat": 33.447222,
+        "lng": -111.99089
+      },
+      {
+        "code": "GAZ6",
+        "name": "Phoenix Glendale Bus Stop",
+        "lat": 33.538261,
+        "lng": -112.11558
       }
     ]
   },
@@ -943,6 +1423,26 @@
         "lat": 45.366146,
         "lng": -122.595925
       }
+    ],
+    "busStations": [
+      {
+        "code": "PUT6",
+        "name": "Portland Curbside Bus Stop",
+        "lat": 45.530414,
+        "lng": -122.678192
+      },
+      {
+        "code": "1SA",
+        "name": "Salem (Chemeketa & Liberty)",
+        "lat": 44.942118,
+        "lng": -123.037065
+      },
+      {
+        "code": "HOD6",
+        "name": "Hood River (Mount Hood Railroad)",
+        "lat": 45.70966,
+        "lng": -121.512
+      }
     ]
   },
   "Golden 1 Center": {
@@ -976,6 +1476,26 @@
         "name": "Elk Grove Amtrak Bus Stop",
         "lat": 38.424746,
         "lng": -121.480807
+      }
+    ],
+    "busStations": [
+      {
+        "code": "0SI",
+        "name": "Sacramento (Old Sacramento 2nd St/J St)",
+        "lat": 38.583655,
+        "lng": -121.503862
+      },
+      {
+        "code": "SAC6",
+        "name": "Sacramento Bus Station",
+        "lat": 38.596741,
+        "lng": -121.49705
+      },
+      {
+        "code": "RSV6",
+        "name": "Roseville Bus Stop",
+        "lat": 38.750145,
+        "lng": -121.28606
       }
     ]
   },
@@ -1011,6 +1531,26 @@
         "lat": 29.876571,
         "lng": -97.941049
       }
+    ],
+    "busStations": [
+      {
+        "code": "2SP",
+        "name": "San Antonio Pearl District",
+        "lat": 29.441896,
+        "lng": -98.479232
+      },
+      {
+        "code": "SNT6",
+        "name": "San Antonio Bus Station",
+        "lat": 29.428949,
+        "lng": -98.491065
+      },
+      {
+        "code": "HDO6",
+        "name": "Hondo (Hondo Shell)",
+        "lat": 29.347233,
+        "lng": -99.142021
+      }
     ]
   },
   "AT&T Center": {
@@ -1045,6 +1585,26 @@
         "lat": 29.876571,
         "lng": -97.941049
       }
+    ],
+    "busStations": [
+      {
+        "code": "2SP",
+        "name": "San Antonio Pearl District",
+        "lat": 29.441896,
+        "lng": -98.479232
+      },
+      {
+        "code": "SNT6",
+        "name": "San Antonio Bus Station",
+        "lat": 29.428949,
+        "lng": -98.491065
+      },
+      {
+        "code": "HDO6",
+        "name": "Hondo (Hondo Shell)",
+        "lat": 29.347233,
+        "lng": -99.142021
+      }
     ]
   },
   "Delta Center": {
@@ -1073,6 +1633,20 @@
         "lat": 40.225957,
         "lng": -111.664001
       }
+    ],
+    "busStations": [
+      {
+        "code": "SLC6",
+        "name": "Salt Lake City Intermodal Trans Ctr",
+        "lat": 40.763536,
+        "lng": -111.908915
+      },
+      {
+        "code": "ENT6",
+        "name": "Evanston (Chevron)",
+        "lat": 41.264156,
+        "lng": -110.95776
+      }
     ]
   },
   "Vivint Arena": {
@@ -1100,6 +1674,20 @@
         "name": "Provo Amtrak",
         "lat": 40.225957,
         "lng": -111.664001
+      }
+    ],
+    "busStations": [
+      {
+        "code": "SLC6",
+        "name": "Salt Lake City Intermodal Trans Ctr",
+        "lat": 40.763536,
+        "lng": -111.908915
+      },
+      {
+        "code": "ENT6",
+        "name": "Evanston (Chevron)",
+        "lat": 41.264156,
+        "lng": -110.95776
       }
     ]
   },
@@ -1147,6 +1735,26 @@
         "lat": 38.948098,
         "lng": -76.871494
       }
+    ],
+    "busStations": [
+      {
+        "code": "DCD6",
+        "name": "Washington Union Station",
+        "lat": 38.89758,
+        "lng": -77.006158
+      },
+      {
+        "code": "6DU",
+        "name": "Washington DC (Dupont Circle)",
+        "lat": 38.911322,
+        "lng": -77.044588
+      },
+      {
+        "code": "6RL",
+        "name": "Arlington (Rosslyn)",
+        "lat": 38.894715,
+        "lng": -77.069121
+      }
     ]
   },
   "Scotiabank Arena": {
@@ -1173,6 +1781,26 @@
         "name": "Grimsby",
         "lat": 43.195949,
         "lng": -79.557945
+      }
+    ],
+    "busStations": [
+      {
+        "code": "TOR6",
+        "name": "Toronto (Union Station Bus Terminal)",
+        "lat": 43.644153,
+        "lng": -79.377473
+      },
+      {
+        "code": "7TO",
+        "name": "Toronto (Harbourfront)",
+        "lat": 43.640654,
+        "lng": -79.380659
+      },
+      {
+        "code": "7TY",
+        "name": "Yorkdale (TTC Passenger Pick-up)",
+        "lat": 43.7257,
+        "lng": -79.44779
       }
     ]
   },
@@ -1208,6 +1836,26 @@
         "lat": 39.645969,
         "lng": -85.13338
       }
+    ],
+    "busStations": [
+      {
+        "code": "CVT6",
+        "name": "Covington Bus Stop",
+        "lat": 39.088686,
+        "lng": -84.511348
+      },
+      {
+        "code": "5CI",
+        "name": "Cincinnati (Downtown)",
+        "lat": 39.107228,
+        "lng": -84.505677
+      },
+      {
+        "code": "5UC",
+        "name": "Cincinnati (University of Cincinnati)",
+        "lat": 39.133766,
+        "lng": -84.509125
+      }
     ]
   },
   "T-Mobile Arena": {
@@ -1242,6 +1890,26 @@
         "lat": 36.164458,
         "lng": -115.149734
       }
+    ],
+    "busStations": [
+      {
+        "code": "LVG6",
+        "name": "Las Vegas Bus Terminal",
+        "lat": 36.080564,
+        "lng": -115.193697
+      },
+      {
+        "code": "UVS",
+        "name": "Las Vegas Strip (Las Vegas Blvd)",
+        "lat": 36.128564,
+        "lng": -115.169982
+      },
+      {
+        "code": "ULV",
+        "name": "Las Vegas Downtown (1st St)",
+        "lat": 36.164518,
+        "lng": -115.149671
+      }
     ]
   },
   "Arena CDMX": {
@@ -1263,7 +1931,8 @@
         "lng": -99.0148
       }
     ],
-    "trainStations": []
+    "trainStations": [],
+    "busStations": []
   },
   "Thomas & Mack Center": {
     "city": "Las Vegas",
@@ -1296,6 +1965,26 @@
         "name": "Las Vegas",
         "lat": 36.164458,
         "lng": -115.149734
+      }
+    ],
+    "busStations": [
+      {
+        "code": "UVS",
+        "name": "Las Vegas Strip (Las Vegas Blvd)",
+        "lat": 36.128564,
+        "lng": -115.169982
+      },
+      {
+        "code": "LVG6",
+        "name": "Las Vegas Bus Terminal",
+        "lat": 36.080564,
+        "lng": -115.193697
+      },
+      {
+        "code": "ULV",
+        "name": "Las Vegas Downtown (1st St)",
+        "lat": 36.164518,
+        "lng": -115.149671
       }
     ]
   }

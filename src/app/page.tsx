@@ -209,21 +209,21 @@ export default function Home() {
 
       {/* Loading overlay */}
       {loading && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/70">
           <div className="flex flex-col items-center gap-3">
-            <Loader2 className="size-8 animate-spin text-white/70" />
-            <p className="text-sm text-white/60">Loading games...</p>
+            <Loader2 className="size-8 animate-spin text-gray-500" />
+            <p className="text-sm text-gray-500">Loading games...</p>
           </div>
         </div>
       )}
 
       {/* Error overlay */}
       {error && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/70">
           <div className="glass rounded-2xl p-6 max-w-md text-center">
-            <p className="font-medium text-red-400 mb-2">Error</p>
-            <p className="text-sm text-white/60">{error}</p>
-            <p className="text-xs text-white/40 mt-3">
+            <p className="font-medium text-red-500 mb-2">Error</p>
+            <p className="text-sm text-gray-500">{error}</p>
+            <p className="text-xs text-gray-400 mt-3">
               Check that TICKETMASTER_API_KEY is set in .env.local
             </p>
           </div>

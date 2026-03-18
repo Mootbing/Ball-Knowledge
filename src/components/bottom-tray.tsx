@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { RouteFocus, VenueInfo } from "./game-map";
+import type { RouteFocus, TransitStop, VenueInfo } from "./game-map";
 import {
   ChevronUp,
   ChevronDown,
@@ -11,7 +11,9 @@ import {
   Car,
   Bus,
   TrainFront,
-  ExternalLink,
+  BusFront,
+  ArrowUpRight,
+  RefreshCw,
 } from "lucide-react";
 
 type TrayState = "collapsed" | "half";
@@ -34,8 +36,9 @@ interface GameEvent {
     home_win: number;
     kalshi_event: string;
   } | null;
-  nearbyAirports?: { code: string; name: string; lat: number; lng: number; driveMinutes: number; transitMinutes: number | null }[];
-  nearbyTrainStations?: { code: string; name: string; lat: number; lng: number; driveMinutes: number; transitMinutes: number | null }[];
+  nearbyAirports?: TransitStop[];
+  nearbyTrainStations?: TransitStop[];
+  nearbyBusStations?: TransitStop[];
 }
 
 function formatTimeEST(time: string | null) {
@@ -44,16 +47,6 @@ function formatTimeEST(time: string | null) {
   const period = h >= 12 ? "PM" : "AM";
   const hour12 = h % 12 || 12;
   return `${hour12}:${String(m).padStart(2, "0")} ${period}`;
-}
-
-function formatPrice(price: { amount: number; currency: string } | null) {
-  if (!price) return "--";
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: price.currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(price.amount);
 }
 
 function formatDriveTime(minutes: number): string {
@@ -94,6 +87,34 @@ export function BottomTray({
   const isDragging = useRef(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const prevTrayState = useRef(trayState);
+
+  // Enriched travel times: key = "venueLat,venueLng;stationLat,stationLng"
+  const [enriched, setEnriched] = useState<Record<string, { driveMinutes: number; transitMinutes: number | null }>>({});
+  const [enriching, setEnriching] = useState<Set<string>>(new Set());
+
+  const enrichKey = (vLat: number, vLng: number, sLat: number, sLng: number) =>
+    `${vLat},${vLng};${sLat},${sLng}`;
+
+  const handleEnrich = useCallback(async (venueLat: number, venueLng: number, stop: TransitStop) => {
+    const key = enrichKey(venueLat, venueLng, stop.lat, stop.lng);
+    if (enriched[key] || enriching.has(key)) return;
+    setEnriching((prev) => new Set(prev).add(key));
+    try {
+      const res = await fetch(
+        `/api/travel-times?fromLat=${venueLat}&fromLng=${venueLng}&toLat=${stop.lat}&toLng=${stop.lng}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setEnriched((prev) => ({ ...prev, [key]: data }));
+      }
+    } finally {
+      setEnriching((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    }
+  }, [enriched, enriching]);
 
   // Track tray state changes → disable hover during animation
   useEffect(() => {
@@ -151,8 +172,8 @@ export function BottomTray({
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
         >
-          <div className="w-10 h-1 rounded-full bg-white/30 mb-1.5" />
-          <div className="flex items-center gap-2 text-xs text-white/60 px-4 w-full">
+          <div className="w-10 h-1 rounded-full bg-gray-300 mb-1.5" />
+          <div className="flex items-center gap-2 text-xs text-gray-500 px-4 w-full">
             <span className="font-medium">
               {games.length} game{games.length !== 1 ? "s" : ""} &middot;{" "}
               {formatDateHeading(date)}
@@ -171,14 +192,15 @@ export function BottomTray({
           <div className={`flex-1 overflow-y-auto no-scrollbar px-3 pb-3 ${isAnimating ? "pointer-events-none" : ""}`}>
             <table className="w-full text-sm">
               <thead className="sticky top-0 glass">
-                <tr className="text-xs text-white/50 border-b border-white/10">
-                  <th className="text-right py-2 px-2 font-medium">Price</th>
+                <tr className="text-xs text-gray-400 border-b border-gray-200">
                   <th className="text-left py-2 px-2 font-medium">Odds</th>
                   <th className="text-left py-2 px-2 font-medium">Game</th>
                   <th className="text-left py-2 px-2 font-medium">Time</th>
                   <th className="text-left py-2 px-2 font-medium">Venue</th>
                   <th className="text-left py-2 px-2 font-medium">Airports</th>
                   <th className="text-left py-2 px-2 font-medium">Trains</th>
+                  <th className="text-left py-2 px-2 font-medium">Buses</th>
+                  <th className="text-left py-2 px-2 font-medium">Links</th>
                 </tr>
               </thead>
               <tbody>
@@ -189,6 +211,7 @@ export function BottomTray({
                   const isSelected = selectedVenue === event.venue;
                   const airports = event.nearbyAirports ?? [];
                   const trains = event.nearbyTrainStations ?? [];
+                  const buses = event.nearbyBusStations ?? [];
                   const kalshiUrl = event.odds
                     ? `https://kalshi.com/markets/KXNBAGAME/${event.odds.kalshi_event}`
                     : null;
@@ -196,8 +219,8 @@ export function BottomTray({
                   return (
                     <tr
                       key={event.id}
-                      className={`border-b border-white/5 hover:bg-white/5 cursor-pointer transition-colors ${
-                        isSelected ? "bg-white/10" : ""
+                      className={`border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${
+                        isSelected ? "bg-blue-50" : ""
                       }`}
                       onClick={() => {
                         if (event.lat != null && event.lng != null) {
@@ -221,173 +244,243 @@ export function BottomTray({
                             })),
                             airports: event.nearbyAirports ?? [],
                             trains: event.nearbyTrainStations ?? [],
+                            buses: event.nearbyBusStations ?? [],
                           });
                         }
                       }}
                     >
-                      <td className="py-2 px-2 text-right font-mono text-emerald-400 text-xs">
-                        {formatPrice(event.min_price)}
-                      </td>
                       <td className="py-2 px-2 text-xs font-mono">
-                        {event.odds && kalshiUrl ? (
-                          <a
-                            href={kalshiUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="hover:underline"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <div className={event.odds.home_win > event.odds.away_win ? "text-emerald-400" : "text-white/60"}>
+                        {event.odds ? (
+                          <>
+                            <div className={event.odds.home_win > event.odds.away_win ? "text-emerald-600" : "text-gray-500"}>
                               H {event.odds.home_win}%
                             </div>
-                            <div className={event.odds.away_win > event.odds.home_win ? "text-emerald-400" : "text-white/60"}>
+                            <div className={event.odds.away_win > event.odds.home_win ? "text-emerald-600" : "text-gray-500"}>
                               A {event.odds.away_win}%
                             </div>
-                          </a>
+                          </>
                         ) : (
-                          <span className="text-white/30">--</span>
+                          <span className="text-gray-300">--</span>
                         )}
                       </td>
                       <td className="py-2 px-2">
-                        <a
-                          href={event.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="hover:underline"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {home ? (
-                            <>
-                              <div>{away}</div>
-                              <div className="text-white/60">@ {home}</div>
-                            </>
-                          ) : (
-                            event.name
-                          )}
-                        </a>
+                        {home ? (
+                          <>
+                            <div>{away}</div>
+                            <div className="text-gray-500">@ {home}</div>
+                          </>
+                        ) : (
+                          event.name
+                        )}
                       </td>
-                      <td className="py-2 px-2 text-white/60">
+                      <td className="py-2 px-2 text-gray-500">
                         <span className="flex items-center gap-1">
                           <Clock className="size-3" />
                           {formatTimeEST(event.est_time)}
                         </span>
                       </td>
-                      <td className="py-2 px-2 text-white/60">
+                      <td className="py-2 px-2 text-gray-500">
                         <span className="flex items-center gap-1">
                           <MapPin className="size-3" />
                           {event.venue}
                         </span>
-                        <span className="text-[10px] text-white/40">
+                        <span className="text-[10px] text-gray-400">
                           {event.city}, {event.state}
                         </span>
                       </td>
                       <td className="py-2 px-2">
                         {airports.length > 0 ? (
-                          <div className="flex flex-col gap-0.5 text-xs text-white/60">
+                          <div className="flex flex-col gap-0.5 text-xs text-gray-500">
                             {airports.map((apt) => {
-                              const focus: RouteFocus | null =
+                              const vLat = event.lat!, vLng = event.lng!;
+                              const ek = event.lat != null && event.lng != null ? enrichKey(vLat, vLng, apt.lat, apt.lng) : null;
+                              const times = ek ? enriched[ek] : null;
+                              const loading = ek ? enriching.has(ek) : false;
+                              const baseFocus =
                                 event.lat != null && event.lng != null
-                                  ? {
-                                      venueLat: event.lat!,
-                                      venueLng: event.lng!,
-                                      airportLat: apt.lat,
-                                      airportLng: apt.lng,
-                                      airportCode: apt.code,
-                                      venueName: event.venue,
-                                    }
+                                  ? { venueLat: vLat, venueLng: vLng, airportLat: apt.lat, airportLng: apt.lng, airportCode: apt.code, venueName: event.venue }
                                   : null;
                               return (
-                                <div
-                                  key={apt.code}
-                                  className="flex items-center gap-1 hover:text-white/90"
-                                  onMouseEnter={() =>
-                                    !isAnimating && focus && onRouteFocus(focus)
-                                  }
-                                  onMouseLeave={() =>
-                                    !isAnimating && onRouteFocus(null)
-                                  }
-                                  onClick={(e) => e.stopPropagation()}
-                                >
+                                <div key={apt.code} className="flex items-center gap-1 hover:text-gray-800" onClick={(e) => e.stopPropagation()}>
                                   <Plane className="size-3" />
                                   <a
                                     href={`https://frontier-flight-search.vercel.app/?to=${apt.code}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="font-mono font-semibold hover:underline"
+                                    onMouseEnter={() => !isAnimating && baseFocus && onRouteFocus({ ...baseFocus, pinOnly: true })}
+                                    onMouseLeave={() => !isAnimating && onRouteFocus(null)}
                                   >
                                     {apt.code}
                                   </a>
-                                  <Car className="size-2.5" />
-                                  {formatDriveTime(apt.driveMinutes)}
-                                  {apt.transitMinutes != null && (
-                                    <>
-                                      <Bus className="size-2.5 text-blue-400" />
-                                      <span className="text-blue-400">
-                                        {formatDriveTime(apt.transitMinutes)}
-                                      </span>
-                                    </>
+                                  {times ? (
+                                    <span
+                                      className="flex items-center gap-1 cursor-default"
+                                      onMouseEnter={() => !isAnimating && baseFocus && onRouteFocus(baseFocus)}
+                                      onMouseLeave={() => !isAnimating && onRouteFocus(null)}
+                                    >
+                                      <Car className="size-2.5" />
+                                      {formatDriveTime(times.driveMinutes)}
+                                      {times.transitMinutes != null && (
+                                        <>
+                                          <Bus className="size-2.5 text-blue-500" />
+                                          <span className="text-blue-500">{formatDriveTime(times.transitMinutes)}</span>
+                                        </>
+                                      )}
+                                    </span>
+                                  ) : (
+                                    <button
+                                      className={`flex items-center gap-0.5 text-gray-400 hover:text-gray-600 ${loading ? "animate-spin" : ""}`}
+                                      onClick={(e) => { e.stopPropagation(); event.lat != null && event.lng != null && handleEnrich(vLat, vLng, apt); }}
+                                      title="Enrich"
+                                    >
+                                      <RefreshCw className="size-2.5" />
+                                    </button>
                                   )}
                                 </div>
                               );
                             })}
                           </div>
                         ) : (
-                          <span className="text-xs text-white/30">--</span>
+                          <span className="text-xs text-gray-300">--</span>
                         )}
                       </td>
                       <td className="py-2 px-2">
                         {trains.length > 0 ? (
-                          <div className="flex flex-col gap-0.5 text-xs text-white/60">
+                          <div className="flex flex-col gap-0.5 text-xs text-gray-500">
                             {trains.map((stn) => {
-                              const focus: RouteFocus | null =
+                              const vLat = event.lat!, vLng = event.lng!;
+                              const ek = event.lat != null && event.lng != null ? enrichKey(vLat, vLng, stn.lat, stn.lng) : null;
+                              const times = ek ? enriched[ek] : null;
+                              const loading = ek ? enriching.has(ek) : false;
+                              const baseFocus =
                                 event.lat != null && event.lng != null
-                                  ? {
-                                      venueLat: event.lat!,
-                                      venueLng: event.lng!,
-                                      airportLat: stn.lat,
-                                      airportLng: stn.lng,
-                                      airportCode: stn.code,
-                                      venueName: event.venue,
-                                    }
+                                  ? { venueLat: vLat, venueLng: vLng, airportLat: stn.lat, airportLng: stn.lng, airportCode: stn.code, venueName: event.venue }
                                   : null;
                               return (
-                                <div
-                                  key={stn.code}
-                                  className="flex items-center gap-1 hover:text-white/90"
-                                  onMouseEnter={() =>
-                                    !isAnimating && focus && onRouteFocus(focus)
-                                  }
-                                  onMouseLeave={() =>
-                                    !isAnimating && onRouteFocus(null)
-                                  }
-                                  onClick={(e) => e.stopPropagation()}
-                                >
+                                <div key={stn.code} className="flex items-center gap-1 hover:text-gray-800" onClick={(e) => e.stopPropagation()}>
                                   <TrainFront className="size-3" />
                                   <a
                                     href={`https://www.amtrak.com/stations/${stn.code.toLowerCase()}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="font-mono font-semibold hover:underline"
+                                    onMouseEnter={() => !isAnimating && baseFocus && onRouteFocus({ ...baseFocus, pinOnly: true })}
+                                    onMouseLeave={() => !isAnimating && onRouteFocus(null)}
                                   >
                                     {stn.code}
                                   </a>
-                                  <Car className="size-2.5" />
-                                  {formatDriveTime(stn.driveMinutes)}
-                                  {stn.transitMinutes != null && (
-                                    <>
-                                      <Bus className="size-2.5 text-blue-400" />
-                                      <span className="text-blue-400">
-                                        {formatDriveTime(stn.transitMinutes)}
-                                      </span>
-                                    </>
+                                  {times ? (
+                                    <span
+                                      className="flex items-center gap-1 cursor-default"
+                                      onMouseEnter={() => !isAnimating && baseFocus && onRouteFocus(baseFocus)}
+                                      onMouseLeave={() => !isAnimating && onRouteFocus(null)}
+                                    >
+                                      <Car className="size-2.5" />
+                                      {formatDriveTime(times.driveMinutes)}
+                                      {times.transitMinutes != null && (
+                                        <>
+                                          <Bus className="size-2.5 text-blue-500" />
+                                          <span className="text-blue-500">{formatDriveTime(times.transitMinutes)}</span>
+                                        </>
+                                      )}
+                                    </span>
+                                  ) : (
+                                    <button
+                                      className={`flex items-center gap-0.5 text-gray-400 hover:text-gray-600 ${loading ? "animate-spin" : ""}`}
+                                      onClick={(e) => { e.stopPropagation(); event.lat != null && event.lng != null && handleEnrich(vLat, vLng, stn); }}
+                                      title="Enrich"
+                                    >
+                                      <RefreshCw className="size-2.5" />
+                                    </button>
                                   )}
                                 </div>
                               );
                             })}
                           </div>
                         ) : (
-                          <span className="text-xs text-white/30">--</span>
+                          <span className="text-xs text-gray-300">--</span>
                         )}
+                      </td>
+                      <td className="py-2 px-2">
+                        {buses.length > 0 ? (
+                          <div className="flex flex-col gap-0.5 text-xs text-gray-500">
+                            {buses.map((bus) => {
+                              const vLat = event.lat!, vLng = event.lng!;
+                              const ek = event.lat != null && event.lng != null ? enrichKey(vLat, vLng, bus.lat, bus.lng) : null;
+                              const times = ek ? enriched[ek] : null;
+                              const loading = ek ? enriching.has(ek) : false;
+                              const baseFocus =
+                                event.lat != null && event.lng != null
+                                  ? { venueLat: vLat, venueLng: vLng, airportLat: bus.lat, airportLng: bus.lng, airportCode: bus.code, venueName: event.venue }
+                                  : null;
+                              return (
+                                <div key={bus.code} className="flex items-center gap-1 hover:text-gray-800" onClick={(e) => e.stopPropagation()}>
+                                  <BusFront className="size-3" />
+                                  <span
+                                    className="font-mono font-semibold cursor-default"
+                                    onMouseEnter={() => !isAnimating && baseFocus && onRouteFocus({ ...baseFocus, pinOnly: true })}
+                                    onMouseLeave={() => !isAnimating && onRouteFocus(null)}
+                                  >
+                                    {bus.code}
+                                  </span>
+                                  {times ? (
+                                    <span
+                                      className="flex items-center gap-1 cursor-default"
+                                      onMouseEnter={() => !isAnimating && baseFocus && onRouteFocus(baseFocus)}
+                                      onMouseLeave={() => !isAnimating && onRouteFocus(null)}
+                                    >
+                                      <Car className="size-2.5" />
+                                      {formatDriveTime(times.driveMinutes)}
+                                      {times.transitMinutes != null && (
+                                        <>
+                                          <Bus className="size-2.5 text-blue-500" />
+                                          <span className="text-blue-500">{formatDriveTime(times.transitMinutes)}</span>
+                                        </>
+                                      )}
+                                    </span>
+                                  ) : (
+                                    <button
+                                      className={`flex items-center gap-0.5 text-gray-400 hover:text-gray-600 ${loading ? "animate-spin" : ""}`}
+                                      onClick={(e) => { e.stopPropagation(); event.lat != null && event.lng != null && handleEnrich(vLat, vLng, bus); }}
+                                      title="Enrich"
+                                    >
+                                      <RefreshCw className="size-2.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-300">--</span>
+                        )}
+                      </td>
+                      <td className="py-2 px-2">
+                        <div className="flex flex-col gap-0.5 text-xs">
+                          <a
+                            href={event.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-0.5 text-gray-500 hover:text-gray-800"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            Ticketmaster
+                            <ArrowUpRight className="size-3" />
+                          </a>
+                          {kalshiUrl && (
+                            <a
+                              href={kalshiUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-0.5 text-gray-500 hover:text-gray-800"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              Kalshi
+                              <ArrowUpRight className="size-3" />
+                            </a>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

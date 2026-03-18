@@ -1,6 +1,7 @@
 "use client";
 
-import type { VenueInfo } from "./game-map";
+import { useCallback, useState } from "react";
+import type { VenueInfo, TransitStop } from "./game-map";
 import type { RouteFocus } from "./game-map";
 import {
   X,
@@ -9,7 +10,9 @@ import {
   Car,
   Bus,
   TrainFront,
+  BusFront,
   ExternalLink,
+  RefreshCw,
 } from "lucide-react";
 
 function formatTimeEST(time: string | null) {
@@ -37,6 +40,9 @@ function formatPrice(price: { amount: number; currency: string } | null) {
   }).format(price.amount);
 }
 
+const enrichKey = (vLat: number, vLng: number, sLat: number, sLng: number) =>
+  `${vLat},${vLng};${sLat},${sLng}`;
+
 export function StadiumCard({
   venue,
   onClose,
@@ -48,6 +54,30 @@ export function StadiumCard({
   onRouteFocus: (focus: RouteFocus | null) => void;
   trayExpanded: boolean;
 }) {
+  const [enriched, setEnriched] = useState<Record<string, { driveMinutes: number; transitMinutes: number | null }>>({});
+  const [enriching, setEnriching] = useState<Set<string>>(new Set());
+
+  const handleEnrich = useCallback(async (venueLat: number, venueLng: number, stop: TransitStop) => {
+    const key = enrichKey(venueLat, venueLng, stop.lat, stop.lng);
+    if (enriched[key] || enriching.has(key)) return;
+    setEnriching((prev) => new Set(prev).add(key));
+    try {
+      const res = await fetch(
+        `/api/travel-times?fromLat=${venueLat}&fromLng=${venueLng}&toLat=${stop.lat}&toLng=${stop.lng}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setEnriched((prev) => ({ ...prev, [key]: data }));
+      }
+    } finally {
+      setEnriching((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    }
+  }, [enriched, enriching]);
+
   if (!venue || trayExpanded) return null;
 
   return (
@@ -56,16 +86,16 @@ export function StadiumCard({
         {/* Header */}
         <div className="flex items-start justify-between mb-3">
           <div>
-            <h3 className="font-semibold text-base">{venue.venue}</h3>
-            <p className="text-xs text-white/50">
+            <h3 className="font-semibold text-base text-gray-900">{venue.venue}</h3>
+            <p className="text-xs text-gray-400">
               {venue.city}, {venue.state}
             </p>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg hover:bg-white/10 transition-colors -mt-1 -mr-1"
+            className="p-1 rounded-lg hover:bg-black/5 transition-colors -mt-1 -mr-1"
           >
-            <X className="size-4" />
+            <X className="size-4 text-gray-500" />
           </button>
         </div>
 
@@ -83,14 +113,14 @@ export function StadiumCard({
             return (
               <div key={game.id} className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="font-medium text-sm truncate">
+                  <p className="font-medium text-sm truncate text-gray-900">
                     {home ? `${away} @ ${home}` : game.name}
                   </p>
-                  <div className="flex items-center gap-2 text-xs text-white/50">
+                  <div className="flex items-center gap-2 text-xs text-gray-400">
                     <Clock className="size-3" />
                     {formatTimeEST(game.est_time)}
                     {price && (
-                      <span className="text-emerald-400 font-mono">
+                      <span className="text-emerald-600 font-mono">
                         {price}
                       </span>
                     )}
@@ -102,7 +132,7 @@ export function StadiumCard({
                       href={kalshiUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs font-mono text-emerald-400 hover:underline"
+                      className="text-xs font-mono text-emerald-600 hover:underline"
                     >
                       {game.odds.home_win}%-{game.odds.away_win}%
                     </a>
@@ -111,7 +141,7 @@ export function StadiumCard({
                     href={game.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-xs text-blue-400 hover:underline"
+                    className="flex items-center gap-1 text-xs text-blue-500 hover:underline"
                   >
                     Tickets <ExternalLink className="size-3" />
                   </a>
@@ -122,82 +152,150 @@ export function StadiumCard({
         </div>
 
         {/* Transport */}
-        {(venue.airports.length > 0 || venue.trains.length > 0) && (
+        {(venue.airports.length > 0 || venue.trains.length > 0 || venue.buses.length > 0) && (
           <>
-            <div className="h-px bg-white/10 my-3" />
+            <div className="h-px bg-gray-200 my-3" />
             <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs">
               {venue.airports.map((apt) => {
-                const focus: RouteFocus = {
-                  venueLat: venue.lat,
-                  venueLng: venue.lng,
-                  airportLat: apt.lat,
-                  airportLng: apt.lng,
-                  airportCode: apt.code,
-                  venueName: venue.venue,
+                const baseFocus: RouteFocus = {
+                  venueLat: venue.lat, venueLng: venue.lng,
+                  airportLat: apt.lat, airportLng: apt.lng,
+                  airportCode: apt.code, venueName: venue.venue,
                 };
+                const ek = enrichKey(venue.lat, venue.lng, apt.lat, apt.lng);
+                const times = enriched[ek];
+                const loading = enriching.has(ek);
                 return (
-                  <div
-                    key={apt.code}
-                    className="flex items-center gap-1 text-white/60 cursor-pointer hover:text-white/90"
-                    onMouseEnter={() => onRouteFocus(focus)}
-                    onMouseLeave={() => onRouteFocus(null)}
-                  >
+                  <div key={apt.code} className="flex items-center gap-1 text-gray-500 hover:text-gray-800">
                     <Plane className="size-3" />
                     <a
                       href={`https://frontier-flight-search.vercel.app/?to=${apt.code}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="font-mono font-semibold hover:underline"
+                      onMouseEnter={() => onRouteFocus({ ...baseFocus, pinOnly: true })}
+                      onMouseLeave={() => onRouteFocus(null)}
                     >
                       {apt.code}
                     </a>
-                    <Car className="size-3 ml-0.5" />
-                    {formatDriveTime(apt.driveMinutes)}
-                    {apt.transitMinutes != null && (
-                      <>
-                        <Bus className="size-3 ml-0.5 text-blue-400" />
-                        <span className="text-blue-400">
-                          {formatDriveTime(apt.transitMinutes)}
-                        </span>
-                      </>
+                    {times ? (
+                      <span
+                        className="flex items-center gap-1 cursor-pointer"
+                        onMouseEnter={() => onRouteFocus(baseFocus)}
+                        onMouseLeave={() => onRouteFocus(null)}
+                      >
+                        <Car className="size-3 ml-0.5" />
+                        {formatDriveTime(times.driveMinutes)}
+                        {times.transitMinutes != null && (
+                          <>
+                            <Bus className="size-3 ml-0.5 text-blue-500" />
+                            <span className="text-blue-500">{formatDriveTime(times.transitMinutes)}</span>
+                          </>
+                        )}
+                      </span>
+                    ) : (
+                      <button
+                        className={`flex items-center gap-0.5 text-gray-400 hover:text-gray-600 ${loading ? "animate-spin" : ""}`}
+                        onClick={() => handleEnrich(venue.lat, venue.lng, apt)}
+                        title="Enrich"
+                      >
+                        <RefreshCw className="size-2.5" />
+                      </button>
                     )}
                   </div>
                 );
               })}
               {venue.trains.map((stn) => {
-                const focus: RouteFocus = {
-                  venueLat: venue.lat,
-                  venueLng: venue.lng,
-                  airportLat: stn.lat,
-                  airportLng: stn.lng,
-                  airportCode: stn.code,
-                  venueName: venue.venue,
+                const baseFocus: RouteFocus = {
+                  venueLat: venue.lat, venueLng: venue.lng,
+                  airportLat: stn.lat, airportLng: stn.lng,
+                  airportCode: stn.code, venueName: venue.venue,
                 };
+                const ek = enrichKey(venue.lat, venue.lng, stn.lat, stn.lng);
+                const times = enriched[ek];
+                const loading = enriching.has(ek);
                 return (
-                  <div
-                    key={stn.code}
-                    className="flex items-center gap-1 text-white/60 cursor-pointer hover:text-white/90"
-                    onMouseEnter={() => onRouteFocus(focus)}
-                    onMouseLeave={() => onRouteFocus(null)}
-                  >
+                  <div key={stn.code} className="flex items-center gap-1 text-gray-500 hover:text-gray-800">
                     <TrainFront className="size-3" />
                     <a
                       href={`https://www.amtrak.com/stations/${stn.code.toLowerCase()}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="font-mono font-semibold hover:underline"
+                      onMouseEnter={() => onRouteFocus({ ...baseFocus, pinOnly: true })}
+                      onMouseLeave={() => onRouteFocus(null)}
                     >
                       {stn.code}
                     </a>
-                    <Car className="size-3 ml-0.5" />
-                    {formatDriveTime(stn.driveMinutes)}
-                    {stn.transitMinutes != null && (
-                      <>
-                        <Bus className="size-3 ml-0.5 text-blue-400" />
-                        <span className="text-blue-400">
-                          {formatDriveTime(stn.transitMinutes)}
-                        </span>
-                      </>
+                    {times ? (
+                      <span
+                        className="flex items-center gap-1 cursor-pointer"
+                        onMouseEnter={() => onRouteFocus(baseFocus)}
+                        onMouseLeave={() => onRouteFocus(null)}
+                      >
+                        <Car className="size-3 ml-0.5" />
+                        {formatDriveTime(times.driveMinutes)}
+                        {times.transitMinutes != null && (
+                          <>
+                            <Bus className="size-3 ml-0.5 text-blue-500" />
+                            <span className="text-blue-500">{formatDriveTime(times.transitMinutes)}</span>
+                          </>
+                        )}
+                      </span>
+                    ) : (
+                      <button
+                        className={`flex items-center gap-0.5 text-gray-400 hover:text-gray-600 ${loading ? "animate-spin" : ""}`}
+                        onClick={() => handleEnrich(venue.lat, venue.lng, stn)}
+                        title="Enrich"
+                      >
+                        <RefreshCw className="size-2.5" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+              {venue.buses.map((bus) => {
+                const baseFocus: RouteFocus = {
+                  venueLat: venue.lat, venueLng: venue.lng,
+                  airportLat: bus.lat, airportLng: bus.lng,
+                  airportCode: bus.code, venueName: venue.venue,
+                };
+                const ek = enrichKey(venue.lat, venue.lng, bus.lat, bus.lng);
+                const times = enriched[ek];
+                const loading = enriching.has(ek);
+                return (
+                  <div key={bus.code} className="flex items-center gap-1 text-gray-500 hover:text-gray-800">
+                    <BusFront className="size-3" />
+                    <span
+                      className="font-mono font-semibold cursor-default"
+                      onMouseEnter={() => onRouteFocus({ ...baseFocus, pinOnly: true })}
+                      onMouseLeave={() => onRouteFocus(null)}
+                    >
+                      {bus.code}
+                    </span>
+                    {times ? (
+                      <span
+                        className="flex items-center gap-1 cursor-pointer"
+                        onMouseEnter={() => onRouteFocus(baseFocus)}
+                        onMouseLeave={() => onRouteFocus(null)}
+                      >
+                        <Car className="size-3 ml-0.5" />
+                        {formatDriveTime(times.driveMinutes)}
+                        {times.transitMinutes != null && (
+                          <>
+                            <Bus className="size-3 ml-0.5 text-blue-500" />
+                            <span className="text-blue-500">{formatDriveTime(times.transitMinutes)}</span>
+                          </>
+                        )}
+                      </span>
+                    ) : (
+                      <button
+                        className={`flex items-center gap-0.5 text-gray-400 hover:text-gray-600 ${loading ? "animate-spin" : ""}`}
+                        onClick={() => handleEnrich(venue.lat, venue.lng, bus)}
+                        title="Enrich"
+                      >
+                        <RefreshCw className="size-2.5" />
+                      </button>
                     )}
                   </div>
                 );

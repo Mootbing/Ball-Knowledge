@@ -36,8 +36,18 @@ interface MapEvent {
     home_win: number;
     kalshi_event: string;
   } | null;
-  nearbyAirports?: { code: string; name: string; lat: number; lng: number; driveMinutes: number; transitMinutes: number | null }[];
-  nearbyTrainStations?: { code: string; name: string; lat: number; lng: number; driveMinutes: number; transitMinutes: number | null }[];
+  nearbyAirports?: TransitStop[];
+  nearbyTrainStations?: TransitStop[];
+  nearbyBusStations?: TransitStop[];
+}
+
+export interface TransitStop {
+  code: string;
+  name: string;
+  lat: number;
+  lng: number;
+  driveMinutes?: number;
+  transitMinutes?: number | null;
 }
 
 export interface RouteFocus {
@@ -70,8 +80,9 @@ export interface VenueInfo {
       kalshi_event: string;
     } | null;
   }[];
-  airports: { code: string; name: string; lat: number; lng: number; driveMinutes: number; transitMinutes: number | null }[];
-  trains: { code: string; name: string; lat: number; lng: number; driveMinutes: number; transitMinutes: number | null }[];
+  airports: TransitStop[];
+  trains: TransitStop[];
+  buses: TransitStop[];
 }
 
 const directionsCache = new Map<string, google.maps.DirectionsResult>();
@@ -121,9 +132,9 @@ export function GameMap({
       const map = new google.maps.Map(containerRef.current, {
         mapId: "DEMO_MAP_ID",
         disableDefaultUI: true,
-        zoomControl: true,
+        zoomControl: false,
         gestureHandling: "greedy",
-        colorScheme: "DARK",
+        colorScheme: "LIGHT",
         center: { lat: 39.8, lng: -98.5 },
         zoom: 4,
       });
@@ -195,6 +206,7 @@ export function GameMap({
         const venueGames = currentEvents.filter((e) => e.venue === v.venue);
         const firstWithAirports = venueGames.find((e) => e.nearbyAirports?.length);
         const firstWithTrains = venueGames.find((e) => e.nearbyTrainStations?.length);
+        const firstWithBuses = venueGames.find((e) => e.nearbyBusStations?.length);
 
         const venueInfo: VenueInfo = {
           venue: v.venue,
@@ -212,6 +224,7 @@ export function GameMap({
           })),
           airports: firstWithAirports?.nearbyAirports ?? [],
           trains: firstWithTrains?.nearbyTrainStations ?? [],
+          buses: firstWithBuses?.nearbyBusStations ?? [],
         };
         onMarkerClickRef.current?.(venueInfo);
       });

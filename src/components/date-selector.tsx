@@ -71,12 +71,12 @@ export function DateSelector({
               if (hasPrev) onDateChange(availableDates[idx - 1]);
             }}
             disabled={!hasPrev}
-            className="p-1 rounded-lg hover:bg-white/10 disabled:opacity-25 disabled:cursor-not-allowed transition-colors"
+            className="p-1 rounded-lg hover:bg-black/5 disabled:opacity-25 disabled:cursor-not-allowed transition-colors"
           >
-            <ChevronLeft className="size-4" />
+            <ChevronLeft className="size-4 text-gray-700" />
           </button>
           {prevDate && (
-            <span className="text-[9px] text-white/40 leading-none -mt-0.5">
+            <span className="text-[9px] text-gray-400 leading-none -mt-0.5">
               {gameCountByDate[prevDate] ?? 0}
             </span>
           )}
@@ -85,12 +85,12 @@ export function DateSelector({
         {/* Center date — clickable */}
         <button
           onClick={() => setOpen((o) => !o)}
-          className="text-center min-w-[120px] px-1 rounded-lg hover:bg-white/10 transition-colors py-0.5"
+          className="text-center min-w-[120px] px-1 rounded-lg hover:bg-black/5 transition-colors py-0.5"
         >
-          <div className="text-sm font-medium leading-tight">
+          <div className="text-sm font-medium leading-tight text-gray-900">
             {formatDate(currentDate)}
           </div>
-          <div className="text-[10px] text-white/50 leading-tight">
+          <div className="text-[10px] text-gray-400 leading-tight">
             {gameLabel(gameCount)}
           </div>
         </button>
@@ -102,12 +102,12 @@ export function DateSelector({
               if (hasNext) onDateChange(availableDates[idx + 1]);
             }}
             disabled={!hasNext}
-            className="p-1 rounded-lg hover:bg-white/10 disabled:opacity-25 disabled:cursor-not-allowed transition-colors"
+            className="p-1 rounded-lg hover:bg-black/5 disabled:opacity-25 disabled:cursor-not-allowed transition-colors"
           >
-            <ChevronRight className="size-4" />
+            <ChevronRight className="size-4 text-gray-700" />
           </button>
           {nextDate && (
-            <span className="text-[9px] text-white/40 leading-none -mt-0.5">
+            <span className="text-[9px] text-gray-400 leading-none -mt-0.5">
               {gameCountByDate[nextDate] ?? 0}
             </span>
           )}
@@ -129,12 +129,12 @@ export function DateSelector({
                 }}
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors ${
                   isActive
-                    ? "bg-white/20 font-medium"
-                    : "hover:bg-white/10"
+                    ? "bg-blue-50 font-medium text-blue-700"
+                    : "text-gray-700 hover:bg-gray-100"
                 }`}
               >
                 <span>{formatShortDate(date)}</span>
-                <span className="text-[11px] text-white/50 ml-3">
+                <span className="text-[11px] text-gray-400 ml-3">
                   {gameLabel(count)}
                 </span>
               </button>

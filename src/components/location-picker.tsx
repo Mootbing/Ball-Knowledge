@@ -61,7 +61,6 @@ export function LocationPicker({
         { location: { lat: userLocation.lat, lng: userLocation.lng } },
         (results, status) => {
           if (status !== "OK" || !results?.length) return;
-          // Find a locality result
           const locality = results.find((r) => r.types.includes("locality"));
           const best = locality ?? results[0];
           const city = best.address_components?.find((c) =>
@@ -144,7 +143,6 @@ export function LocationPicker({
       if (status === "OK" && results?.[0]?.geometry?.location) {
         const loc = results[0].geometry.location;
         onLocationChange({ lat: loc.lat(), lng: loc.lng() });
-        // New session token for next autocomplete session
         sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
         setOpen(false);
       }
@@ -200,10 +198,10 @@ export function LocationPicker({
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="glass rounded-xl flex items-center gap-2 px-3 py-2 text-sm hover:bg-white/5 transition-colors"
+        className="glass rounded-xl flex items-center gap-2 px-3 py-2 text-sm hover:bg-black/5 transition-colors"
       >
-        <MapPin className="size-4 text-blue-400 shrink-0" />
-        <span className="truncate max-w-[120px] text-white/80">
+        <MapPin className="size-4 text-blue-500 shrink-0" />
+        <span className="truncate max-w-[120px] text-gray-700">
           {label ?? (userLocation ? "My Location" : "Set Location")}
         </span>
       </button>
@@ -218,12 +216,12 @@ export function LocationPicker({
               value={query}
               onChange={(e) => handleInputChange(e.target.value)}
               onKeyDown={handleKeyDown}
-              className="flex-1 bg-white/5 rounded-lg px-3 py-1.5 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-1 focus:ring-white/20"
+              className="flex-1 bg-gray-100 rounded-lg px-3 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-300"
             />
             {query && (
               <button
                 onClick={() => { setQuery(""); setSuggestions([]); }}
-                className="text-white/40 hover:text-white/70"
+                className="text-gray-400 hover:text-gray-600"
               >
                 <X className="size-3.5" />
               </button>
@@ -238,11 +236,11 @@ export function LocationPicker({
                   key={s.placeId}
                   onClick={() => selectSuggestion(s)}
                   className={`text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                    i === selectedIdx ? "bg-white/15 text-white" : "text-white/70 hover:bg-white/10"
+                    i === selectedIdx ? "bg-blue-50 text-blue-700" : "text-gray-700 hover:bg-gray-100"
                   }`}
                 >
                   <div className="font-medium text-xs">{s.main}</div>
-                  <div className="text-[11px] text-white/40">{s.secondary}</div>
+                  <div className="text-[11px] text-gray-400">{s.secondary}</div>
                 </button>
               ))}
             </div>
@@ -251,7 +249,7 @@ export function LocationPicker({
           <div className="flex gap-2 mt-2">
             <button
               onClick={handleUseMyLocation}
-              className="flex items-center gap-1.5 bg-white/5 text-white/60 text-xs rounded-lg px-3 py-1.5 hover:bg-white/10 hover:text-white/80 transition-colors"
+              className="flex items-center gap-1.5 bg-gray-100 text-gray-600 text-xs rounded-lg px-3 py-1.5 hover:bg-gray-200 hover:text-gray-800 transition-colors"
             >
               <Navigation className="size-3" />
               Use GPS
@@ -259,7 +257,7 @@ export function LocationPicker({
           </div>
 
           {userLocation && label && (
-            <div className="mt-2 pt-2 border-t border-white/10 text-[11px] text-white/40">
+            <div className="mt-2 pt-2 border-t border-gray-200 text-[11px] text-gray-400">
               Current: {label}
             </div>
           )}
