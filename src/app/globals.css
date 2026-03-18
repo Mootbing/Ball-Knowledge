@@ -135,9 +135,9 @@
   }
 }
 
-/* Light glassmorphic panel */
+/* Light solid white panel */
 .glass {
-  background: #ffffff;
+  background-color: #ffffff !important;
   border: 1px solid oklch(0 0 0 / 8%);
   box-shadow: 0 4px 24px oklch(0 0 0 / 10%);
 }
