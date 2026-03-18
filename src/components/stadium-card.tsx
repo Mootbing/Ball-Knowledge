@@ -1,18 +1,13 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import type { VenueInfo, TransitStop } from "./game-map";
-import type { RouteFocus } from "./game-map";
+import type { VenueInfo } from "./game-map";
 import {
   X,
   Clock,
   Plane,
-  Car,
-  Bus,
   TrainFront,
   BusFront,
   ExternalLink,
-  RefreshCw,
 } from "lucide-react";
 
 function formatTimeEST(time: string | null) {
@@ -21,13 +16,6 @@ function formatTimeEST(time: string | null) {
   const period = h >= 12 ? "PM" : "AM";
   const hour12 = h % 12 || 12;
   return `${hour12}:${String(m).padStart(2, "0")} ${period}`;
-}
-
-function formatDriveTime(minutes: number): string {
-  if (minutes < 60) return `${minutes}m`;
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return m > 0 ? `${h}h${m}m` : `${h}h`;
 }
 
 function formatPrice(price: { amount: number; currency: string } | null) {
@@ -40,44 +28,15 @@ function formatPrice(price: { amount: number; currency: string } | null) {
   }).format(price.amount);
 }
 
-const enrichKey = (vLat: number, vLng: number, sLat: number, sLng: number) =>
-  `${vLat},${vLng};${sLat},${sLng}`;
-
 export function StadiumCard({
   venue,
   onClose,
-  onRouteFocus,
   trayExpanded,
 }: {
   venue: VenueInfo | null;
   onClose: () => void;
-  onRouteFocus: (focus: RouteFocus | null) => void;
   trayExpanded: boolean;
 }) {
-  const [enriched, setEnriched] = useState<Record<string, { driveMinutes: number; transitMinutes: number | null }>>({});
-  const [enriching, setEnriching] = useState<Set<string>>(new Set());
-
-  const handleEnrich = useCallback(async (venueLat: number, venueLng: number, stop: TransitStop) => {
-    const key = enrichKey(venueLat, venueLng, stop.lat, stop.lng);
-    if (enriched[key] || enriching.has(key)) return;
-    setEnriching((prev) => new Set(prev).add(key));
-    try {
-      const res = await fetch(
-        `/api/travel-times?fromLat=${venueLat}&fromLng=${venueLng}&toLat=${stop.lat}&toLng=${stop.lng}`
-      );
-      if (res.ok) {
-        const data = await res.json();
-        setEnriched((prev) => ({ ...prev, [key]: data }));
-      }
-    } finally {
-      setEnriching((prev) => {
-        const next = new Set(prev);
-        next.delete(key);
-        return next;
-      });
-    }
-  }, [enriched, enriching]);
-
   if (!venue || trayExpanded) return null;
 
   return (
@@ -151,155 +110,41 @@ export function StadiumCard({
           })}
         </div>
 
-        {/* Transport */}
+        {/* Transport summary */}
         {(venue.airports.length > 0 || venue.trains.length > 0 || venue.buses.length > 0) && (
           <>
             <div className="h-px bg-gray-200 my-3" />
-            <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs">
-              {venue.airports.map((apt) => {
-                const baseFocus: RouteFocus = {
-                  venueLat: venue.lat, venueLng: venue.lng,
-                  airportLat: apt.lat, airportLng: apt.lng,
-                  airportCode: apt.code, venueName: venue.venue,
-                };
-                const ek = enrichKey(venue.lat, venue.lng, apt.lat, apt.lng);
-                const times = enriched[ek];
-                const loading = enriching.has(ek);
-                return (
-                  <div key={apt.code} className="flex items-center gap-1 text-gray-500 hover:text-gray-800">
-                    <Plane className="size-3" />
-                    <a
-                      href={`https://frontier-flight-search.vercel.app/?to=${apt.code}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-mono font-semibold hover:underline"
-                      onMouseEnter={() => onRouteFocus({ ...baseFocus, pinOnly: true })}
-                      onMouseLeave={() => onRouteFocus(null)}
-                    >
-                      {apt.code}
-                    </a>
-                    {times ? (
-                      <span
-                        className="flex items-center gap-1 cursor-pointer"
-                        onMouseEnter={() => onRouteFocus(baseFocus)}
-                        onMouseLeave={() => onRouteFocus(null)}
-                      >
-                        <Car className="size-3 ml-0.5" />
-                        {formatDriveTime(times.driveMinutes)}
-                        {times.transitMinutes != null && (
-                          <>
-                            <Bus className="size-3 ml-0.5 text-blue-500" />
-                            <span className="text-blue-500">{formatDriveTime(times.transitMinutes)}</span>
-                          </>
-                        )}
-                      </span>
-                    ) : (
-                      <button
-                        className={`flex items-center gap-0.5 text-gray-400 hover:text-gray-600 ${loading ? "animate-spin" : ""}`}
-                        onClick={() => handleEnrich(venue.lat, venue.lng, apt)}
-                        title="Enrich"
-                      >
-                        <RefreshCw className="size-2.5" />
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-              {venue.trains.map((stn) => {
-                const baseFocus: RouteFocus = {
-                  venueLat: venue.lat, venueLng: venue.lng,
-                  airportLat: stn.lat, airportLng: stn.lng,
-                  airportCode: stn.code, venueName: venue.venue,
-                };
-                const ek = enrichKey(venue.lat, venue.lng, stn.lat, stn.lng);
-                const times = enriched[ek];
-                const loading = enriching.has(ek);
-                return (
-                  <div key={stn.code} className="flex items-center gap-1 text-gray-500 hover:text-gray-800">
-                    <TrainFront className="size-3" />
-                    <a
-                      href={`https://www.amtrak.com/stations/${stn.code.toLowerCase()}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-mono font-semibold hover:underline"
-                      onMouseEnter={() => onRouteFocus({ ...baseFocus, pinOnly: true })}
-                      onMouseLeave={() => onRouteFocus(null)}
-                    >
-                      {stn.code}
-                    </a>
-                    {times ? (
-                      <span
-                        className="flex items-center gap-1 cursor-pointer"
-                        onMouseEnter={() => onRouteFocus(baseFocus)}
-                        onMouseLeave={() => onRouteFocus(null)}
-                      >
-                        <Car className="size-3 ml-0.5" />
-                        {formatDriveTime(times.driveMinutes)}
-                        {times.transitMinutes != null && (
-                          <>
-                            <Bus className="size-3 ml-0.5 text-blue-500" />
-                            <span className="text-blue-500">{formatDriveTime(times.transitMinutes)}</span>
-                          </>
-                        )}
-                      </span>
-                    ) : (
-                      <button
-                        className={`flex items-center gap-0.5 text-gray-400 hover:text-gray-600 ${loading ? "animate-spin" : ""}`}
-                        onClick={() => handleEnrich(venue.lat, venue.lng, stn)}
-                        title="Enrich"
-                      >
-                        <RefreshCw className="size-2.5" />
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-              {venue.buses.map((bus) => {
-                const baseFocus: RouteFocus = {
-                  venueLat: venue.lat, venueLng: venue.lng,
-                  airportLat: bus.lat, airportLng: bus.lng,
-                  airportCode: bus.code, venueName: venue.venue,
-                };
-                const ek = enrichKey(venue.lat, venue.lng, bus.lat, bus.lng);
-                const times = enriched[ek];
-                const loading = enriching.has(ek);
-                return (
-                  <div key={bus.code} className="flex items-center gap-1 text-gray-500 hover:text-gray-800">
-                    <BusFront className="size-3" />
-                    <span
-                      className="font-mono font-semibold cursor-default"
-                      onMouseEnter={() => onRouteFocus({ ...baseFocus, pinOnly: true })}
-                      onMouseLeave={() => onRouteFocus(null)}
-                    >
-                      {bus.code}
-                    </span>
-                    {times ? (
-                      <span
-                        className="flex items-center gap-1 cursor-pointer"
-                        onMouseEnter={() => onRouteFocus(baseFocus)}
-                        onMouseLeave={() => onRouteFocus(null)}
-                      >
-                        <Car className="size-3 ml-0.5" />
-                        {formatDriveTime(times.driveMinutes)}
-                        {times.transitMinutes != null && (
-                          <>
-                            <Bus className="size-3 ml-0.5 text-blue-500" />
-                            <span className="text-blue-500">{formatDriveTime(times.transitMinutes)}</span>
-                          </>
-                        )}
-                      </span>
-                    ) : (
-                      <button
-                        className={`flex items-center gap-0.5 text-gray-400 hover:text-gray-600 ${loading ? "animate-spin" : ""}`}
-                        onClick={() => handleEnrich(venue.lat, venue.lng, bus)}
-                        title="Enrich"
-                      >
-                        <RefreshCw className="size-2.5" />
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
+            <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-gray-500">
+              {venue.airports.length > 0 && (
+                <span className="flex items-center gap-1">
+                  <Plane className="size-3" />
+                  {venue.airports.length === 1 ? (
+                    <span className="font-mono font-semibold">{venue.airports[0].code}</span>
+                  ) : (
+                    <span>{venue.airports.length} airports nearby</span>
+                  )}
+                </span>
+              )}
+              {venue.trains.length > 0 && (
+                <span className="flex items-center gap-1">
+                  <TrainFront className="size-3" />
+                  {venue.trains.length === 1 ? (
+                    <span className="font-mono font-semibold">{venue.trains[0].code}</span>
+                  ) : (
+                    <span>{venue.trains.length} train stations nearby</span>
+                  )}
+                </span>
+              )}
+              {venue.buses.length > 0 && (
+                <span className="flex items-center gap-1">
+                  <BusFront className="size-3" />
+                  {venue.buses.length === 1 ? (
+                    <span className="font-mono font-semibold">{venue.buses[0].code}</span>
+                  ) : (
+                    <span>{venue.buses.length} bus stations nearby</span>
+                  )}
+                </span>
+              )}
             </div>
           </>
         )}

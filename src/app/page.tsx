@@ -190,7 +190,6 @@ export default function Home() {
       <StadiumCard
         venue={selectedVenue}
         onClose={() => setSelectedVenue(null)}
-        onRouteFocus={handleRouteFocus}
         trayExpanded={trayState === "half"}
       />
 
