@@ -65,6 +65,15 @@ export default function Home() {
   const [routeFocus, setRouteFocus] = useState<RouteFocus | null>(null);
   const [trayState, setTrayState] = useState<"collapsed" | "half">("collapsed");
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [vh, setVh] = useState(800);
+
+  // Track viewport height
+  useEffect(() => {
+    setVh(window.innerHeight);
+    const onResize = () => setVh(window.innerHeight);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   // Request geolocation
   useEffect(() => {
@@ -159,6 +168,7 @@ export default function Home() {
         selectedVenue={selectedVenue?.venue ?? null}
         onMarkerClick={handleMarkerClick}
         userLocation={userLocation}
+        bottomPadding={trayState === "half" ? Math.round(vh * 0.5) : 52}
       />
 
       {/* Top bar: search + date selector */}

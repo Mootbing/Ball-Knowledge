@@ -80,12 +80,14 @@ export function GameMap({
   selectedVenue,
   onMarkerClick,
   userLocation,
+  bottomPadding = 0,
 }: {
   events: MapEvent[];
   routeFocus?: RouteFocus | null;
   selectedVenue?: string | null;
   onMarkerClick?: (venue: VenueInfo) => void;
   userLocation?: { lat: number; lng: number } | null;
+  bottomPadding?: number;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -97,6 +99,8 @@ export function GameMap({
   const [mapReady, setMapReady] = useState(false);
   const onMarkerClickRef = useRef(onMarkerClick);
   onMarkerClickRef.current = onMarkerClick;
+  const bottomPaddingRef = useRef(bottomPadding);
+  bottomPaddingRef.current = bottomPadding;
 
   // Store events ref for building VenueInfo on click
   const eventsRef = useRef(events);
@@ -218,7 +222,7 @@ export function GameMap({
       map.setCenter({ lat: only.lat, lng: only.lng });
       map.setZoom(6);
     } else {
-      map.fitBounds(bounds, 40);
+      map.fitBounds(bounds, { top: 40, left: 40, right: 40, bottom: 40 + bottomPaddingRef.current });
     }
   }, [events, mapReady]);
 
@@ -263,6 +267,15 @@ export function GameMap({
     }
   }, [userLocation, mapReady]);
 
+  // Re-fit bounds when bottom padding changes (tray open/close)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || routeFocus) return;
+    if (defaultBoundsRef.current) {
+      map.fitBounds(defaultBoundsRef.current, { top: 40, left: 40, right: 40, bottom: 40 + bottomPadding });
+    }
+  }, [bottomPadding, mapReady, routeFocus]);
+
   // Route focus
   useEffect(() => {
     const map = mapRef.current;
@@ -274,7 +287,7 @@ export function GameMap({
 
     if (!routeFocus) {
       if (defaultBoundsRef.current) {
-        map.fitBounds(defaultBoundsRef.current, 40);
+        map.fitBounds(defaultBoundsRef.current, { top: 40, left: 40, right: 40, bottom: 40 + bottomPaddingRef.current });
       }
       return;
     }
@@ -299,7 +312,7 @@ export function GameMap({
     const bounds = new google.maps.LatLngBounds();
     bounds.extend(venuePos);
     bounds.extend(airportPos);
-    map.fitBounds(bounds, 50);
+    map.fitBounds(bounds, { top: 50, left: 50, right: 50, bottom: 50 + bottomPaddingRef.current });
 
     const cacheKey = `${routeFocus.venueLat},${routeFocus.venueLng};${routeFocus.airportLat},${routeFocus.airportLng}`;
     const cached = directionsCache.get(cacheKey);
