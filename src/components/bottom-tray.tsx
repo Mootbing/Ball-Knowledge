@@ -41,6 +41,7 @@ interface GameEvent {
   } | null;
   away_record?: string | null;
   home_record?: string | null;
+  espn_price?: { amount: number; available: number; url: string | null } | null;
   nearbyAirports?: TransitStop[];
   nearbyTrainStations?: TransitStop[];
   nearbyBusStations?: TransitStop[];
@@ -70,6 +71,14 @@ function gmapsUrl(fromLat: number, fromLng: number, toLat: number, toLng: number
   return `https://www.google.com/maps/dir/?api=1&origin=${fromLat},${fromLng}&destination=${toLat},${toLng}&travelmode=${mode}`;
 }
 
+function uberDeepLink(fromLat: number, fromLng: number, toLat: number, toLng: number) {
+  return `https://m.uber.com/ul/?action=setPickup&pickup[latitude]=${fromLat}&pickup[longitude]=${fromLng}&dropoff[latitude]=${toLat}&dropoff[longitude]=${toLng}`;
+}
+
+function lyftDeepLink(fromLat: number, fromLng: number, toLat: number, toLng: number) {
+  return `https://lyft.com/ride?pickup[latitude]=${fromLat}&pickup[longitude]=${fromLng}&destination[latitude]=${toLat}&destination[longitude]=${toLng}`;
+}
+
 function haversineMiles(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const toRad = (d: number) => (d * Math.PI) / 180;
   const R = 3958.8; // Earth radius in miles
@@ -81,7 +90,7 @@ function haversineMiles(lat1: number, lng1: number, lat2: number, lng2: number):
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-type SortKey = "game" | "time" | "distance" | null;
+type SortKey = "game" | "time" | "distance" | "spread" | "price" | null;
 type SortDir = "asc" | "desc";
 
 function formatDateHeading(dateStr: string) {
@@ -168,6 +177,18 @@ export function BottomTray({
           cmp = dA - dB;
           break;
         }
+        case "spread": {
+          const sA = a.odds ? Math.abs(a.odds.away_win - a.odds.home_win) : Infinity;
+          const sB = b.odds ? Math.abs(b.odds.away_win - b.odds.home_win) : Infinity;
+          cmp = sA - sB;
+          break;
+        }
+        case "price": {
+          const pA = a.espn_price?.amount ?? a.min_price?.amount ?? Infinity;
+          const pB = b.espn_price?.amount ?? b.min_price?.amount ?? Infinity;
+          cmp = pA - pB;
+          break;
+        }
       }
       return sortDir === "asc" ? cmp : -cmp;
     });
@@ -175,7 +196,7 @@ export function BottomTray({
   }, [games, sortKey, sortDir, distanceMap]);
 
   // Enriched travel times: key = "venueLat,venueLng;stationLat,stationLng"
-  const [enriched, setEnriched] = useState<Record<string, { driveMinutes: number; transitMinutes: number | null }>>({});
+  const [enriched, setEnriched] = useState<Record<string, { driveMinutes: number; transitMinutes: number | null; transitFare: string | null; uberEstimate: string | null; lyftEstimate: string | null }>>({});
   const [enriching, setEnriching] = useState<Set<string>>(new Set());
 
   const enrichKey = (vLat: number, vLng: number, sLat: number, sLng: number) =>
@@ -296,6 +317,18 @@ export function BottomTray({
                 <tr className="text-xs text-gray-400 border-b border-gray-200">
                   <th className="text-left py-2 px-2 font-medium">Odds</th>
                   <th className="text-left py-2 px-2 font-medium">
+                    <button onClick={() => handleSort("spread")} className="flex items-center gap-0.5 hover:text-gray-600">
+                      Spread
+                      {sortKey === "spread" ? (sortDir === "asc" ? <ArrowUp className="size-2.5" /> : <ArrowDown className="size-2.5" />) : <ArrowUpDown className="size-2.5" />}
+                    </button>
+                  </th>
+                  <th className="text-left py-2 px-2 font-medium">
+                    <button onClick={() => handleSort("price")} className="flex items-center gap-0.5 hover:text-gray-600">
+                      Tickets
+                      {sortKey === "price" ? (sortDir === "asc" ? <ArrowUp className="size-2.5" /> : <ArrowDown className="size-2.5" />) : <ArrowUpDown className="size-2.5" />}
+                    </button>
+                  </th>
+                  <th className="text-left py-2 px-2 font-medium">
                     <button onClick={() => handleSort("game")} className="flex items-center gap-0.5 hover:text-gray-600">
                       Game
                       {sortKey === "game" ? (sortDir === "asc" ? <ArrowUp className="size-2.5" /> : <ArrowDown className="size-2.5" />) : <ArrowUpDown className="size-2.5" />}
@@ -409,6 +442,33 @@ export function BottomTray({
                           <span className="text-gray-300">--</span>
                         )}
                       </td>
+                      <td className="py-2 px-2 text-xs font-mono text-center">
+                        {event.odds ? (
+                          <span className={Math.abs(event.odds.away_win - event.odds.home_win) <= 10 ? "text-amber-600 font-semibold" : "text-gray-500"}>
+                            {Math.abs(event.odds.away_win - event.odds.home_win)}%
+                          </span>
+                        ) : (
+                          <span className="text-gray-300">--</span>
+                        )}
+                      </td>
+                      <td className="py-2 px-2 text-xs" onClick={(e) => e.stopPropagation()}>
+                        {event.espn_price ? (
+                          <div className="flex flex-col gap-0.5">
+                            {event.espn_price.url ? (
+                              <a href={event.espn_price.url} target="_blank" rel="noopener noreferrer" className="text-emerald-600 font-semibold hover:underline">
+                                ${event.espn_price.amount}
+                              </a>
+                            ) : (
+                              <span className="text-emerald-600 font-semibold">${event.espn_price.amount}</span>
+                            )}
+                            <span className="text-[10px] text-gray-400">{event.espn_price.available.toLocaleString()} avail</span>
+                          </div>
+                        ) : event.min_price ? (
+                          <span className="text-gray-500">${event.min_price.amount}</span>
+                        ) : (
+                          <span className="text-gray-300">--</span>
+                        )}
+                      </td>
                       <td className="py-2 px-2">
                         {away ? (
                           <>
@@ -452,7 +512,7 @@ export function BottomTray({
                                   ? { venueLat: vLat, venueLng: vLng, airportLat: apt.lat, airportLng: apt.lng, airportCode: apt.code, venueName: event.venue }
                                   : null;
                               return (
-                                <div key={apt.code} className="flex items-center gap-1 hover:text-gray-800" onClick={(e) => e.stopPropagation()}>
+                                <div key={apt.code} className="flex items-center gap-1 flex-wrap hover:text-gray-800" onClick={(e) => e.stopPropagation()}>
                                   <Plane className="size-3" />
                                   <a
                                     href={`https://frontier-flight-search.vercel.app/?to=${apt.code}`}
@@ -474,10 +534,21 @@ export function BottomTray({
                                         <Car className="size-2.5" />
                                         {formatDriveTime(times.driveMinutes)}
                                       </a>
+                                      {times.uberEstimate && (
+                                        <a href={uberDeepLink(vLat, vLng, apt.lat, apt.lng)} target="_blank" rel="noopener noreferrer" className="text-[10px] text-gray-500 hover:underline">
+                                          Uber {times.uberEstimate}
+                                        </a>
+                                      )}
+                                      {times.lyftEstimate && (
+                                        <a href={lyftDeepLink(vLat, vLng, apt.lat, apt.lng)} target="_blank" rel="noopener noreferrer" className="text-[10px] text-pink-500 hover:underline">
+                                          Lyft {times.lyftEstimate}
+                                        </a>
+                                      )}
                                       {times.transitMinutes != null && (
                                         <a href={gmapsUrl(vLat, vLng, apt.lat, apt.lng, "transit")} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-blue-500 hover:underline">
                                           <Bus className="size-2.5" />
                                           {formatDriveTime(times.transitMinutes)}
+                                          {times.transitFare && <span className="text-emerald-600 ml-0.5">{times.transitFare}</span>}
                                         </a>
                                       )}
                                     </span>
@@ -511,7 +582,7 @@ export function BottomTray({
                                   ? { venueLat: vLat, venueLng: vLng, airportLat: stn.lat, airportLng: stn.lng, airportCode: stn.code, venueName: event.venue }
                                   : null;
                               return (
-                                <div key={stn.code} className="flex items-center gap-1 hover:text-gray-800" onClick={(e) => e.stopPropagation()}>
+                                <div key={stn.code} className="flex items-center gap-1 flex-wrap hover:text-gray-800" onClick={(e) => e.stopPropagation()}>
                                   <TrainFront className="size-3" />
                                   <a
                                     href={`https://www.amtrak.com/stations/${stn.code.toLowerCase()}`}
@@ -533,10 +604,21 @@ export function BottomTray({
                                         <Car className="size-2.5" />
                                         {formatDriveTime(times.driveMinutes)}
                                       </a>
+                                      {times.uberEstimate && (
+                                        <a href={uberDeepLink(vLat, vLng, stn.lat, stn.lng)} target="_blank" rel="noopener noreferrer" className="text-[10px] text-gray-500 hover:underline">
+                                          Uber {times.uberEstimate}
+                                        </a>
+                                      )}
+                                      {times.lyftEstimate && (
+                                        <a href={lyftDeepLink(vLat, vLng, stn.lat, stn.lng)} target="_blank" rel="noopener noreferrer" className="text-[10px] text-pink-500 hover:underline">
+                                          Lyft {times.lyftEstimate}
+                                        </a>
+                                      )}
                                       {times.transitMinutes != null && (
                                         <a href={gmapsUrl(vLat, vLng, stn.lat, stn.lng, "transit")} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-blue-500 hover:underline">
                                           <Bus className="size-2.5" />
                                           {formatDriveTime(times.transitMinutes)}
+                                          {times.transitFare && <span className="text-emerald-600 ml-0.5">{times.transitFare}</span>}
                                         </a>
                                       )}
                                     </span>
@@ -570,7 +652,7 @@ export function BottomTray({
                                   ? { venueLat: vLat, venueLng: vLng, airportLat: bus.lat, airportLng: bus.lng, airportCode: bus.code, venueName: event.venue }
                                   : null;
                               return (
-                                <div key={bus.code} className="flex items-center gap-1 hover:text-gray-800" onClick={(e) => e.stopPropagation()}>
+                                <div key={bus.code} className="flex items-center gap-1 flex-wrap hover:text-gray-800" onClick={(e) => e.stopPropagation()}>
                                   <BusFront className="size-3" />
                                   <span
                                     className="font-mono font-semibold cursor-default"
@@ -589,10 +671,21 @@ export function BottomTray({
                                         <Car className="size-2.5" />
                                         {formatDriveTime(times.driveMinutes)}
                                       </a>
+                                      {times.uberEstimate && (
+                                        <a href={uberDeepLink(vLat, vLng, bus.lat, bus.lng)} target="_blank" rel="noopener noreferrer" className="text-[10px] text-gray-500 hover:underline">
+                                          Uber {times.uberEstimate}
+                                        </a>
+                                      )}
+                                      {times.lyftEstimate && (
+                                        <a href={lyftDeepLink(vLat, vLng, bus.lat, bus.lng)} target="_blank" rel="noopener noreferrer" className="text-[10px] text-pink-500 hover:underline">
+                                          Lyft {times.lyftEstimate}
+                                        </a>
+                                      )}
                                       {times.transitMinutes != null && (
                                         <a href={gmapsUrl(vLat, vLng, bus.lat, bus.lng, "transit")} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-blue-500 hover:underline">
                                           <Bus className="size-2.5" />
                                           {formatDriveTime(times.transitMinutes)}
+                                          {times.transitFare && <span className="text-emerald-600 ml-0.5">{times.transitFare}</span>}
                                         </a>
                                       )}
                                     </span>

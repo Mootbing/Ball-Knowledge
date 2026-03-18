@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { fetchNBAEvents, type TMEvent } from "@/lib/ticketmaster";
 import { fetchNBAOdds, matchOddsToEvent, findTeamCode } from "@/lib/kalshi";
-import { fetchNBAStandings } from "@/lib/espn";
+import { fetchNBAStandings, fetchEspnTickets } from "@/lib/espn";
 import stadiumAirportsData from "../../../../data/stadium-airports.json";
 
 interface AirportCoord {
@@ -150,11 +150,33 @@ export async function GET() {
           : null,
         away_record: awayRec ? `${awayRec.wins}-${awayRec.losses}` : null,
         home_record: homeRec ? `${homeRec.wins}-${homeRec.losses}` : null,
+        _awayCode: awayCode,
+        _homeCode: homeCode,
+        espn_price: null as { amount: number; available: number; url: string | null } | null,
         nearbyAirports: [] as AirportCoord[],
         nearbyTrainStations: [] as AirportCoord[],
         nearbyBusStations: [] as AirportCoord[],
       };
     });
+
+    // Fetch ESPN ticket prices for all relevant dates
+    const allDates = [...new Set(mapped.map((e) => e.est_date))];
+    const espnTickets = await fetchEspnTickets(allDates).catch(() => ({}) as Record<string, import("@/lib/espn").EspnTicketInfo>);
+
+    // Merge ESPN prices into mapped events
+    for (const event of mapped) {
+      if (event._awayCode && event._homeCode) {
+        const key = `${event._awayCode}@${event._homeCode}`;
+        const ticket = espnTickets[key];
+        if (ticket) {
+          event.espn_price = {
+            amount: ticket.price,
+            available: ticket.available,
+            url: ticket.url,
+          };
+        }
+      }
+    }
 
     // Attach nearby stations (no travel times — enriched on demand)
     const venueMap = new Map<string, typeof mapped[number][]>();
@@ -194,7 +216,11 @@ export async function GET() {
 
     const dates = Object.entries(grouped)
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, events]) => ({ date, events }));
+      .map(([date, events]) => ({
+        date,
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        events: events.map(({ _awayCode, _homeCode, ...rest }) => rest),
+      }));
 
     return NextResponse.json({
       total: mapped.length,

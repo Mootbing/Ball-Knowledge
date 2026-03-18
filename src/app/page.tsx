@@ -35,6 +35,7 @@ interface GameEvent {
   } | null;
   away_record?: string | null;
   home_record?: string | null;
+  espn_price?: { amount: number; available: number; url: string | null } | null;
   nearbyAirports?: { code: string; name: string; lat: number; lng: number; driveMinutes: number; transitMinutes: number | null }[];
   nearbyTrainStations?: { code: string; name: string; lat: number; lng: number; driveMinutes: number; transitMinutes: number | null }[];
 }
