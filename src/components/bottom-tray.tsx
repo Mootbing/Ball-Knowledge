@@ -17,6 +17,7 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  Navigation,
 } from "lucide-react";
 
 type TrayState = "collapsed" | "half";
@@ -72,7 +73,9 @@ function gmapsUrl(fromLat: number, fromLng: number, toLat: number, toLng: number
 }
 
 function uberDeepLink(fromLat: number, fromLng: number, toLat: number, toLng: number) {
-  return `https://m.uber.com/ul/?action=setPickup&pickup[latitude]=${fromLat}&pickup[longitude]=${fromLng}&dropoff[latitude]=${toLat}&dropoff[longitude]=${toLng}`;
+  const pickup = encodeURIComponent(JSON.stringify({ source: "SEARCH", latitude: fromLat, longitude: fromLng, provider: "uber_places" }));
+  const drop = encodeURIComponent(JSON.stringify({ source: "SEARCH", latitude: toLat, longitude: toLng, provider: "uber_places" }));
+  return `https://m.uber.com/go/product-selection?pickup=${pickup}&drop%5B0%5D=${drop}`;
 }
 
 function lyftDeepLink(fromLat: number, fromLng: number, toLat: number, toLng: number) {
@@ -103,6 +106,110 @@ function formatDateHeading(dateStr: string) {
   });
 }
 
+function TransitStopCell({
+  stop,
+  icon: Icon,
+  codeHref,
+  vLat,
+  vLng,
+  times,
+  loading,
+  onEnrich,
+  onRouteFocus,
+  isAnimating,
+  venueName,
+}: {
+  stop: TransitStop;
+  icon: React.ComponentType<{ className?: string }>;
+  codeHref: string | null;
+  vLat: number;
+  vLng: number;
+  times: { driveMinutes: number; transitMinutes: number | null; transitFare: string | null; uberEstimate: string | null; lyftEstimate: string | null } | null;
+  loading: boolean;
+  onEnrich: () => void;
+  onRouteFocus: (focus: RouteFocus | null) => void;
+  isAnimating: boolean;
+  venueName: string;
+}) {
+  const baseFocus = { venueLat: vLat, venueLng: vLng, airportLat: stop.lat, airportLng: stop.lng, airportCode: stop.code, venueName };
+
+  if (!times) {
+    return (
+      <div className="flex items-center gap-1 hover:text-gray-800" onClick={(e) => e.stopPropagation()}>
+        <Icon className="size-3" />
+        {codeHref ? (
+          <a href={codeHref} target="_blank" rel="noopener noreferrer" className="font-mono font-semibold hover:underline"
+            onMouseEnter={() => !isAnimating && onRouteFocus({ ...baseFocus, pinOnly: true })}
+            onMouseLeave={() => !isAnimating && onRouteFocus(null)}
+          >{stop.code}</a>
+        ) : (
+          <span className="font-mono font-semibold cursor-default"
+            onMouseEnter={() => !isAnimating && onRouteFocus({ ...baseFocus, pinOnly: true })}
+            onMouseLeave={() => !isAnimating && onRouteFocus(null)}
+          >{stop.code}</span>
+        )}
+        <button
+          className={`flex items-center gap-0.5 text-gray-400 hover:text-gray-600 ${loading ? "animate-spin" : ""}`}
+          onClick={(e) => { e.stopPropagation(); onEnrich(); }}
+          title="Enrich"
+        >
+          <RefreshCw className="size-2.5" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border-l-2 border-gray-200 pl-1.5" onClick={(e) => e.stopPropagation()}
+      onMouseEnter={() => !isAnimating && onRouteFocus(baseFocus)}
+      onMouseLeave={() => !isAnimating && onRouteFocus(null)}
+    >
+      {/* Line 1: Icon + Code + Drive time */}
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex items-center gap-1">
+          <Icon className="size-3" />
+          {codeHref ? (
+            <a href={codeHref} target="_blank" rel="noopener noreferrer" className="font-mono font-semibold hover:underline">{stop.code}</a>
+          ) : (
+            <span className="font-mono font-semibold">{stop.code}</span>
+          )}
+        </span>
+        <a href={gmapsUrl(vLat, vLng, stop.lat, stop.lng, "driving")} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 hover:underline whitespace-nowrap">
+          <Car className="size-2.5" />
+          {formatDriveTime(times.driveMinutes)}
+        </a>
+      </div>
+      {/* Rideshare rows */}
+      {times.uberEstimate && (
+        <div className="flex items-center gap-1 pl-4 text-[10px]">
+          <a href={uberDeepLink(vLat, vLng, stop.lat, stop.lng)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:underline">
+            <span className="inline-flex items-center justify-center rounded bg-black px-1 py-0.5 text-[8px] font-bold text-white leading-none">UBER</span>
+            <span className="text-gray-500">{times.uberEstimate}</span>
+          </a>
+        </div>
+      )}
+      {times.lyftEstimate && (
+        <div className="flex items-center gap-1 pl-4 text-[10px]">
+          <a href={lyftDeepLink(vLat, vLng, stop.lat, stop.lng)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:underline">
+            <span className="inline-flex items-center justify-center rounded bg-pink-500 px-1 py-0.5 text-[8px] font-bold text-white leading-none">LYFT</span>
+            <span className="text-pink-500">{times.lyftEstimate}</span>
+          </a>
+        </div>
+      )}
+      {/* Line 3: Public transit */}
+      {times.transitMinutes != null && (
+        <div className="pl-4">
+          <a href={gmapsUrl(vLat, vLng, stop.lat, stop.lng, "transit")} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-blue-500 hover:underline">
+            <Bus className="size-2.5" />
+            {formatDriveTime(times.transitMinutes)}
+            {times.transitFare && <span className="text-emerald-600 ml-0.5">{times.transitFare}</span>}
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function BottomTray({
   games,
   date,
@@ -122,6 +229,7 @@ export function BottomTray({
   onTrayStateChange: (state: TrayState) => void;
   userLocation: { lat: number; lng: number } | null;
 }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
   const dragStartY = useRef(0);
   const isDragging = useRef(false);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -130,9 +238,17 @@ export function BottomTray({
   const [sortKey, setSortKey] = useState<SortKey>(null);
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
+  const [showOdds, setShowOdds] = useState(true);
+  const [showTickets, setShowTickets] = useState(true);
+  const [showRecord, setShowRecord] = useState(true);
+  const [showGame, setShowGame] = useState(true);
+  const [showTime, setShowTime] = useState(true);
+  const [showVenue, setShowVenue] = useState(true);
   const [showAirports, setShowAirports] = useState(true);
   const [showTrains, setShowTrains] = useState(true);
   const [showBuses, setShowBuses] = useState(true);
+  const [showLinks, setShowLinks] = useState(true);
+  const [showAction, setShowAction] = useState(true);
 
   // Precompute distances
   const distanceMap = useMemo(() => {
@@ -242,6 +358,20 @@ export function BottomTray({
     await Promise.all(stops.map((s) => handleEnrich(s.vLat, s.vLng, s.stop)));
   }, [games, enriched, enriching, handleEnrich]);
 
+  // Auto-scroll to selected venue row
+  useEffect(() => {
+    if (!selectedVenue || trayState !== "half") return;
+    const timer = setTimeout(() => {
+      const container = scrollRef.current;
+      if (!container) return;
+      const row = container.querySelector(`[data-venue="${CSS.escape(selectedVenue)}"]`) as HTMLElement | null;
+      if (row) {
+        row.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [selectedVenue, trayState]);
+
   // Track tray state changes → disable hover during animation
   useEffect(() => {
     if (prevTrayState.current !== trayState) {
@@ -306,12 +436,24 @@ export function BottomTray({
             </span>
             {trayState === "half" && (
               <span className="flex items-center gap-1 ml-2" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
-                <span className="text-gray-300">&middot;</span>
-                <button onClick={() => setShowAirports((v) => !v)} className={`px-1 rounded ${showAirports ? "text-gray-600" : "text-gray-300 line-through"}`}>Airports</button>
-                <span className="text-gray-300">&middot;</span>
-                <button onClick={() => setShowTrains((v) => !v)} className={`px-1 rounded ${showTrains ? "text-gray-600" : "text-gray-300 line-through"}`}>Trains</button>
-                <span className="text-gray-300">&middot;</span>
-                <button onClick={() => setShowBuses((v) => !v)} className={`px-1 rounded ${showBuses ? "text-gray-600" : "text-gray-300 line-through"}`}>Buses</button>
+                {([
+                  ["Odds", showOdds, setShowOdds],
+                  ["Tickets", showTickets, setShowTickets],
+                  ["Record", showRecord, setShowRecord],
+                  ["Game", showGame, setShowGame],
+                  ["Time", showTime, setShowTime],
+                  ["Venue", showVenue, setShowVenue],
+                  ["Airports", showAirports, setShowAirports],
+                  ["Trains", showTrains, setShowTrains],
+                  ["Buses", showBuses, setShowBuses],
+                  ["Links", showLinks, setShowLinks],
+                  ["Action", showAction, setShowAction],
+                ] as [string, boolean, React.Dispatch<React.SetStateAction<boolean>>][]).map(([label, show, setShow]) => (
+                  <span key={label} className="flex items-center gap-1">
+                    <span className="text-gray-300">&middot;</span>
+                    <button onClick={() => setShow((v) => !v)} className={`px-1 rounded ${show ? "text-gray-600" : "text-gray-300 line-through"}`}>{label}</button>
+                  </span>
+                ))}
               </span>
             )}
             <span className="flex-1" />
@@ -325,40 +467,41 @@ export function BottomTray({
 
         {/* Scrollable game list */}
         {trayState === "half" && (
-          <div className={`flex-1 overflow-y-auto no-scrollbar px-3 pb-3 ${isAnimating ? "pointer-events-none" : ""}`}>
+          <div ref={scrollRef} className={`flex-1 overflow-y-auto no-scrollbar px-3 pb-3 ${isAnimating ? "pointer-events-none" : ""}`}>
             <table className="w-full text-sm">
               <thead className="sticky top-0 glass">
                 <tr className="text-xs text-gray-400 border-b border-gray-200">
-                  <th className="text-left py-2 px-2 font-medium">
+                  {showOdds && <th className="text-left py-2 px-2 font-medium">
                     <button onClick={() => handleSort("spread")} className="flex items-center gap-0.5 hover:text-gray-600">
                       Odds
                       {sortKey === "spread" ? (sortDir === "asc" ? <ArrowUp className="size-2.5" /> : <ArrowDown className="size-2.5" />) : <ArrowUpDown className="size-2.5" />}
                     </button>
-                  </th>
-                  <th className="text-left py-2 px-2 font-medium">
+                  </th>}
+                  {showTickets && <th className="text-left py-2 px-2 font-medium">
                     <button onClick={() => handleSort("price")} className="flex items-center gap-0.5 hover:text-gray-600">
                       Tickets
                       {sortKey === "price" ? (sortDir === "asc" ? <ArrowUp className="size-2.5" /> : <ArrowDown className="size-2.5" />) : <ArrowUpDown className="size-2.5" />}
                     </button>
-                  </th>
-                  <th className="text-left py-2 px-2 font-medium">
+                  </th>}
+                  {showRecord && <th className="text-left py-2 px-2 font-medium">Record</th>}
+                  {showGame && <th className="text-left py-2 px-2 font-medium">
                     <button onClick={() => handleSort("game")} className="flex items-center gap-0.5 hover:text-gray-600">
                       Game
                       {sortKey === "game" ? (sortDir === "asc" ? <ArrowUp className="size-2.5" /> : <ArrowDown className="size-2.5" />) : <ArrowUpDown className="size-2.5" />}
                     </button>
-                  </th>
-                  <th className="text-left py-2 px-2 font-medium">
+                  </th>}
+                  {showTime && <th className="text-left py-2 px-2 font-medium">
                     <button onClick={() => handleSort("time")} className="flex items-center gap-0.5 hover:text-gray-600">
                       Time
                       {sortKey === "time" ? (sortDir === "asc" ? <ArrowUp className="size-2.5" /> : <ArrowDown className="size-2.5" />) : <ArrowUpDown className="size-2.5" />}
                     </button>
-                  </th>
-                  <th className="text-left py-2 px-2 font-medium">
+                  </th>}
+                  {showVenue && <th className="text-left py-2 px-2 font-medium">
                     <button onClick={() => handleSort("distance")} className={`flex items-center gap-0.5 ${userLocation ? "hover:text-gray-600" : "opacity-40 cursor-not-allowed"}`} title={userLocation ? "Sort by distance" : "Set location to sort by distance"}>
                       Venue
                       {sortKey === "distance" ? (sortDir === "asc" ? <ArrowUp className="size-2.5" /> : <ArrowDown className="size-2.5" />) : <ArrowUpDown className="size-2.5" />}
                     </button>
-                  </th>
+                  </th>}
                   {showAirports && (
                     <th className="text-left py-2 px-2 font-medium">
                       <span className="flex items-center gap-1">
@@ -389,15 +532,16 @@ export function BottomTray({
                       </span>
                     </th>
                   )}
-                  <th className="text-left py-2 px-2 font-medium">Links</th>
+                  {showLinks && <th className="text-left py-2 px-2 font-medium">Links</th>}
+                  {showAction && <th className="text-left py-2 px-2 font-medium">Action</th>}
                 </tr>
               </thead>
               <tbody>
                 {sortedGames.map((event) => {
                   const parts = event.name.split(/\s+(?:vs?\.?|VS\.?)\s+/);
                   // TM names are "Home vs Away" (home team listed first, since the event is at their venue)
-                  const home = parts[0];
-                  const away = parts.length > 1 ? parts.slice(1).join(" vs ") : null;
+                  const home = parts[0].replace(/\s*\(.*?\)/g, "").trim();
+                  const away = parts.length > 1 ? parts.slice(1).join(" vs ").replace(/\s*\(.*?\)/g, "").trim() : null;
                   const isSelected = selectedVenue === event.venue;
                   const airports = event.nearbyAirports ?? [];
                   const trains = event.nearbyTrainStations ?? [];
@@ -409,6 +553,7 @@ export function BottomTray({
                   return (
                     <tr
                       key={event.id}
+                      data-venue={event.venue}
                       className={`border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${
                         isSelected ? "bg-blue-50" : ""
                       }`}
@@ -447,7 +592,7 @@ export function BottomTray({
                         }
                       }}
                     >
-                      <td className="py-2 px-2 text-xs font-mono">
+                      {showOdds && <td className="py-2 px-2 text-xs font-mono">
                         {event.odds ? (
                           <>
                             <div className={event.odds.away_win > event.odds.home_win ? "text-emerald-600" : "text-gray-500"}>
@@ -463,8 +608,8 @@ export function BottomTray({
                         ) : (
                           <span className="text-gray-300">--</span>
                         )}
-                      </td>
-                      <td className="py-2 px-2 text-xs" onClick={(e) => e.stopPropagation()}>
+                      </td>}
+                      {showTickets && <td className="py-2 px-2 text-xs" onClick={(e) => e.stopPropagation()}>
                         {event.espn_price ? (
                           <div className="flex flex-col gap-0.5">
                             {event.espn_price.url ? (
@@ -481,24 +626,34 @@ export function BottomTray({
                         ) : (
                           <span className="text-gray-300">--</span>
                         )}
-                      </td>
-                      <td className="py-2 px-2">
+                      </td>}
+                      {showRecord && <td className="py-2 px-2 text-xs text-gray-400 tabular-nums">
                         {away ? (
                           <>
-                            <div>{away}{event.away_record && <span className="text-gray-400 text-xs ml-1">[{event.away_record}]</span>}</div>
-                            <div className="text-gray-500">@ {home}{event.home_record && <span className="text-gray-400 text-xs ml-1">[{event.home_record}]</span>}</div>
+                            <div>{event.away_record ?? "—"}</div>
+                            <div>{event.home_record ?? "—"}</div>
+                          </>
+                        ) : (
+                          <span className="text-gray-300">--</span>
+                        )}
+                      </td>}
+                      {showGame && <td className="py-2 px-2">
+                        {away ? (
+                          <>
+                            <div>{away}</div>
+                            <div className="text-gray-500">@ {home}</div>
                           </>
                         ) : (
                           event.name
                         )}
-                      </td>
-                      <td className="py-2 px-2 text-gray-500">
+                      </td>}
+                      {showTime && <td className="py-2 px-2 text-gray-500">
                         <span className="flex items-center gap-1">
                           <Clock className="size-3" />
                           {formatTimeEST(event.est_time)}
                         </span>
-                      </td>
-                      <td className="py-2 px-2 text-gray-500">
+                      </td>}
+                      {showVenue && <td className="py-2 px-2 text-gray-500">
                         <span className="flex items-center gap-1">
                           <MapPin className="size-3" />
                           {event.venue}
@@ -511,70 +666,28 @@ export function BottomTray({
                         <span className="text-[10px] text-gray-400">
                           {event.city}, {event.state}
                         </span>
-                      </td>
+                      </td>}
                       {showAirports && <td className="py-2 px-2">
                         {airports.length > 0 ? (
-                          <div className="flex flex-col gap-0.5 text-xs text-gray-500">
+                          <div className="flex flex-col gap-1 text-xs text-gray-500">
                             {airports.map((apt) => {
                               const vLat = event.lat!, vLng = event.lng!;
                               const ek = event.lat != null && event.lng != null ? enrichKey(vLat, vLng, apt.lat, apt.lng) : null;
-                              const times = ek ? enriched[ek] : null;
-                              const loading = ek ? enriching.has(ek) : false;
-                              const baseFocus =
-                                event.lat != null && event.lng != null
-                                  ? { venueLat: vLat, venueLng: vLng, airportLat: apt.lat, airportLng: apt.lng, airportCode: apt.code, venueName: event.venue }
-                                  : null;
                               return (
-                                <div key={apt.code} className="flex items-center gap-1 flex-wrap hover:text-gray-800" onClick={(e) => e.stopPropagation()}>
-                                  <Plane className="size-3" />
-                                  <a
-                                    href={`https://frontier-flight-search.vercel.app/?to=${apt.code}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="font-mono font-semibold hover:underline"
-                                    onMouseEnter={() => !isAnimating && baseFocus && onRouteFocus({ ...baseFocus, pinOnly: true })}
-                                    onMouseLeave={() => !isAnimating && onRouteFocus(null)}
-                                  >
-                                    {apt.code}
-                                  </a>
-                                  {times ? (
-                                    <span
-                                      className="flex items-center gap-1"
-                                      onMouseEnter={() => !isAnimating && baseFocus && onRouteFocus(baseFocus)}
-                                      onMouseLeave={() => !isAnimating && onRouteFocus(null)}
-                                    >
-                                      <a href={gmapsUrl(vLat, vLng, apt.lat, apt.lng, "driving")} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 hover:underline">
-                                        <Car className="size-2.5" />
-                                        {formatDriveTime(times.driveMinutes)}
-                                      </a>
-                                      {times.uberEstimate && (
-                                        <a href={uberDeepLink(vLat, vLng, apt.lat, apt.lng)} target="_blank" rel="noopener noreferrer" className="text-[10px] text-gray-500 hover:underline">
-                                          Uber {times.uberEstimate}
-                                        </a>
-                                      )}
-                                      {times.lyftEstimate && (
-                                        <a href={lyftDeepLink(vLat, vLng, apt.lat, apt.lng)} target="_blank" rel="noopener noreferrer" className="text-[10px] text-pink-500 hover:underline">
-                                          Lyft {times.lyftEstimate}
-                                        </a>
-                                      )}
-                                      {times.transitMinutes != null && (
-                                        <a href={gmapsUrl(vLat, vLng, apt.lat, apt.lng, "transit")} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-blue-500 hover:underline">
-                                          <Bus className="size-2.5" />
-                                          {formatDriveTime(times.transitMinutes)}
-                                          {times.transitFare && <span className="text-emerald-600 ml-0.5">{times.transitFare}</span>}
-                                        </a>
-                                      )}
-                                    </span>
-                                  ) : (
-                                    <button
-                                      className={`flex items-center gap-0.5 text-gray-400 hover:text-gray-600 ${loading ? "animate-spin" : ""}`}
-                                      onClick={(e) => { e.stopPropagation(); event.lat != null && event.lng != null && handleEnrich(vLat, vLng, apt); }}
-                                      title="Enrich"
-                                    >
-                                      <RefreshCw className="size-2.5" />
-                                    </button>
-                                  )}
-                                </div>
+                                <TransitStopCell
+                                  key={apt.code}
+                                  stop={apt}
+                                  icon={Plane}
+                                  codeHref={`https://frontier-flight-search.vercel.app/?to=${apt.code}`}
+                                  vLat={vLat}
+                                  vLng={vLng}
+                                  times={ek ? enriched[ek] ?? null : null}
+                                  loading={ek ? enriching.has(ek) : false}
+                                  onEnrich={() => event.lat != null && event.lng != null && handleEnrich(vLat, vLng, apt)}
+                                  onRouteFocus={onRouteFocus}
+                                  isAnimating={isAnimating}
+                                  venueName={event.venue}
+                                />
                               );
                             })}
                           </div>
@@ -584,67 +697,25 @@ export function BottomTray({
                       </td>}
                       {showTrains && <td className="py-2 px-2">
                         {trains.length > 0 ? (
-                          <div className="flex flex-col gap-0.5 text-xs text-gray-500">
+                          <div className="flex flex-col gap-1 text-xs text-gray-500">
                             {trains.map((stn) => {
                               const vLat = event.lat!, vLng = event.lng!;
                               const ek = event.lat != null && event.lng != null ? enrichKey(vLat, vLng, stn.lat, stn.lng) : null;
-                              const times = ek ? enriched[ek] : null;
-                              const loading = ek ? enriching.has(ek) : false;
-                              const baseFocus =
-                                event.lat != null && event.lng != null
-                                  ? { venueLat: vLat, venueLng: vLng, airportLat: stn.lat, airportLng: stn.lng, airportCode: stn.code, venueName: event.venue }
-                                  : null;
                               return (
-                                <div key={stn.code} className="flex items-center gap-1 flex-wrap hover:text-gray-800" onClick={(e) => e.stopPropagation()}>
-                                  <TrainFront className="size-3" />
-                                  <a
-                                    href={`https://www.amtrak.com/stations/${stn.code.toLowerCase()}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="font-mono font-semibold hover:underline"
-                                    onMouseEnter={() => !isAnimating && baseFocus && onRouteFocus({ ...baseFocus, pinOnly: true })}
-                                    onMouseLeave={() => !isAnimating && onRouteFocus(null)}
-                                  >
-                                    {stn.code}
-                                  </a>
-                                  {times ? (
-                                    <span
-                                      className="flex items-center gap-1"
-                                      onMouseEnter={() => !isAnimating && baseFocus && onRouteFocus(baseFocus)}
-                                      onMouseLeave={() => !isAnimating && onRouteFocus(null)}
-                                    >
-                                      <a href={gmapsUrl(vLat, vLng, stn.lat, stn.lng, "driving")} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 hover:underline">
-                                        <Car className="size-2.5" />
-                                        {formatDriveTime(times.driveMinutes)}
-                                      </a>
-                                      {times.uberEstimate && (
-                                        <a href={uberDeepLink(vLat, vLng, stn.lat, stn.lng)} target="_blank" rel="noopener noreferrer" className="text-[10px] text-gray-500 hover:underline">
-                                          Uber {times.uberEstimate}
-                                        </a>
-                                      )}
-                                      {times.lyftEstimate && (
-                                        <a href={lyftDeepLink(vLat, vLng, stn.lat, stn.lng)} target="_blank" rel="noopener noreferrer" className="text-[10px] text-pink-500 hover:underline">
-                                          Lyft {times.lyftEstimate}
-                                        </a>
-                                      )}
-                                      {times.transitMinutes != null && (
-                                        <a href={gmapsUrl(vLat, vLng, stn.lat, stn.lng, "transit")} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-blue-500 hover:underline">
-                                          <Bus className="size-2.5" />
-                                          {formatDriveTime(times.transitMinutes)}
-                                          {times.transitFare && <span className="text-emerald-600 ml-0.5">{times.transitFare}</span>}
-                                        </a>
-                                      )}
-                                    </span>
-                                  ) : (
-                                    <button
-                                      className={`flex items-center gap-0.5 text-gray-400 hover:text-gray-600 ${loading ? "animate-spin" : ""}`}
-                                      onClick={(e) => { e.stopPropagation(); event.lat != null && event.lng != null && handleEnrich(vLat, vLng, stn); }}
-                                      title="Enrich"
-                                    >
-                                      <RefreshCw className="size-2.5" />
-                                    </button>
-                                  )}
-                                </div>
+                                <TransitStopCell
+                                  key={stn.code}
+                                  stop={stn}
+                                  icon={TrainFront}
+                                  codeHref={`https://www.amtrak.com/stations/${stn.code.toLowerCase()}`}
+                                  vLat={vLat}
+                                  vLng={vLng}
+                                  times={ek ? enriched[ek] ?? null : null}
+                                  loading={ek ? enriching.has(ek) : false}
+                                  onEnrich={() => event.lat != null && event.lng != null && handleEnrich(vLat, vLng, stn)}
+                                  onRouteFocus={onRouteFocus}
+                                  isAnimating={isAnimating}
+                                  venueName={event.venue}
+                                />
                               );
                             })}
                           </div>
@@ -654,64 +725,25 @@ export function BottomTray({
                       </td>}
                       {showBuses && <td className="py-2 px-2">
                         {buses.length > 0 ? (
-                          <div className="flex flex-col gap-0.5 text-xs text-gray-500">
+                          <div className="flex flex-col gap-1 text-xs text-gray-500">
                             {buses.map((bus) => {
                               const vLat = event.lat!, vLng = event.lng!;
                               const ek = event.lat != null && event.lng != null ? enrichKey(vLat, vLng, bus.lat, bus.lng) : null;
-                              const times = ek ? enriched[ek] : null;
-                              const loading = ek ? enriching.has(ek) : false;
-                              const baseFocus =
-                                event.lat != null && event.lng != null
-                                  ? { venueLat: vLat, venueLng: vLng, airportLat: bus.lat, airportLng: bus.lng, airportCode: bus.code, venueName: event.venue }
-                                  : null;
                               return (
-                                <div key={bus.code} className="flex items-center gap-1 flex-wrap hover:text-gray-800" onClick={(e) => e.stopPropagation()}>
-                                  <BusFront className="size-3" />
-                                  <span
-                                    className="font-mono font-semibold cursor-default"
-                                    onMouseEnter={() => !isAnimating && baseFocus && onRouteFocus({ ...baseFocus, pinOnly: true })}
-                                    onMouseLeave={() => !isAnimating && onRouteFocus(null)}
-                                  >
-                                    {bus.code}
-                                  </span>
-                                  {times ? (
-                                    <span
-                                      className="flex items-center gap-1"
-                                      onMouseEnter={() => !isAnimating && baseFocus && onRouteFocus(baseFocus)}
-                                      onMouseLeave={() => !isAnimating && onRouteFocus(null)}
-                                    >
-                                      <a href={gmapsUrl(vLat, vLng, bus.lat, bus.lng, "driving")} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 hover:underline">
-                                        <Car className="size-2.5" />
-                                        {formatDriveTime(times.driveMinutes)}
-                                      </a>
-                                      {times.uberEstimate && (
-                                        <a href={uberDeepLink(vLat, vLng, bus.lat, bus.lng)} target="_blank" rel="noopener noreferrer" className="text-[10px] text-gray-500 hover:underline">
-                                          Uber {times.uberEstimate}
-                                        </a>
-                                      )}
-                                      {times.lyftEstimate && (
-                                        <a href={lyftDeepLink(vLat, vLng, bus.lat, bus.lng)} target="_blank" rel="noopener noreferrer" className="text-[10px] text-pink-500 hover:underline">
-                                          Lyft {times.lyftEstimate}
-                                        </a>
-                                      )}
-                                      {times.transitMinutes != null && (
-                                        <a href={gmapsUrl(vLat, vLng, bus.lat, bus.lng, "transit")} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-blue-500 hover:underline">
-                                          <Bus className="size-2.5" />
-                                          {formatDriveTime(times.transitMinutes)}
-                                          {times.transitFare && <span className="text-emerald-600 ml-0.5">{times.transitFare}</span>}
-                                        </a>
-                                      )}
-                                    </span>
-                                  ) : (
-                                    <button
-                                      className={`flex items-center gap-0.5 text-gray-400 hover:text-gray-600 ${loading ? "animate-spin" : ""}`}
-                                      onClick={(e) => { e.stopPropagation(); event.lat != null && event.lng != null && handleEnrich(vLat, vLng, bus); }}
-                                      title="Enrich"
-                                    >
-                                      <RefreshCw className="size-2.5" />
-                                    </button>
-                                  )}
-                                </div>
+                                <TransitStopCell
+                                  key={bus.code}
+                                  stop={bus}
+                                  icon={BusFront}
+                                  codeHref={null}
+                                  vLat={vLat}
+                                  vLng={vLng}
+                                  times={ek ? enriched[ek] ?? null : null}
+                                  loading={ek ? enriching.has(ek) : false}
+                                  onEnrich={() => event.lat != null && event.lng != null && handleEnrich(vLat, vLng, bus)}
+                                  onRouteFocus={onRouteFocus}
+                                  isAnimating={isAnimating}
+                                  venueName={event.venue}
+                                />
                               );
                             })}
                           </div>
@@ -719,7 +751,7 @@ export function BottomTray({
                           <span className="text-xs text-gray-300">--</span>
                         )}
                       </td>}
-                      <td className="py-2 px-2">
+                      {showLinks && <td className="py-2 px-2">
                         <div className="flex flex-col gap-0.5 text-xs">
                           <a
                             href={event.url}
@@ -778,7 +810,22 @@ export function BottomTray({
                             <ArrowUpRight className="size-3" />
                           </a>
                         </div>
-                      </td>
+                      </td>}
+                      {showAction && <td className="py-2 px-2">
+                        {userLocation && event.lat != null && event.est_time ? (
+                          <a
+                            href={`/take-me?originLat=${userLocation.lat}&originLng=${userLocation.lng}&venue=${encodeURIComponent(event.venue)}&venueLat=${event.lat}&venueLng=${event.lng}&date=${date}&time=${event.est_time}&game=${encodeURIComponent(event.name)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-medium hover:bg-emerald-100 transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Navigation className="size-3" /> PLAN
+                          </a>
+                        ) : (
+                          <span className="text-[10px] text-gray-300">Set location</span>
+                        )}
+                      </td>}
                     </tr>
                   );
                 })}

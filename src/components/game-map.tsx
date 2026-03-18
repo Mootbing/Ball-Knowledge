@@ -313,7 +313,7 @@ export function GameMap({
 
     if (!routeFocus) {
       if (defaultBoundsRef.current) {
-        map.fitBounds(defaultBoundsRef.current, { top: 40, left: 40, right: 40, bottom: 40 + bottomPadding });
+        map.fitBounds(defaultBoundsRef.current, { top: 40, left: 40, right: 40, bottom: 40 + bottomPaddingRef.current });
       }
       return;
     }
@@ -338,7 +338,7 @@ export function GameMap({
     const bounds = new google.maps.LatLngBounds();
     bounds.extend(venuePos);
     bounds.extend(airportPos);
-    map.fitBounds(bounds, { top: 50, left: 50, right: 50, bottom: 50 + bottomPadding });
+    map.fitBounds(bounds, { top: 50, left: 50, right: 50, bottom: 50 + bottomPaddingRef.current });
 
     if (!routeFocus.pinOnly) {
       const cacheKey = `${routeFocus.venueLat},${routeFocus.venueLng};${routeFocus.airportLat},${routeFocus.airportLng}`;
@@ -358,7 +358,7 @@ export function GameMap({
         );
       }
     }
-  }, [routeFocus, mapReady, bottomPadding]);
+  }, [routeFocus, mapReady]);
 
   return (
     <div

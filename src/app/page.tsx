@@ -152,6 +152,7 @@ export default function Home() {
   const handleMarkerClick = useCallback((venue: VenueInfo) => {
     setSelectedVenue(venue);
     setRouteFocus(null);
+    setTrayState("half");
   }, []);
 
   const handleRouteFocus = useCallback((focus: RouteFocus | null) => {
@@ -160,6 +161,9 @@ export default function Home() {
 
   const handleTrayStateChange = useCallback((state: "collapsed" | "half") => {
     setTrayState(state);
+    if (state === "collapsed") {
+      setRouteFocus(null);
+    }
   }, []);
 
   return (

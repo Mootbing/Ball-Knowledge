@@ -7,7 +7,6 @@ import {
   Plane,
   TrainFront,
   BusFront,
-  ExternalLink,
   Maximize2,
 } from "lucide-react";
 
@@ -17,11 +16,6 @@ function formatTimeEST(time: string | null) {
   const period = h >= 12 ? "PM" : "AM";
   const hour12 = h % 12 || 12;
   return `${hour12}:${String(m).padStart(2, "0")} ${period}`;
-}
-
-function stubhubUrl(teamName: string): string {
-  const slug = teamName.replace(/\s*\(.*?\)/g, "").trim().toLowerCase().replace(/\s+/g, "-");
-  return `https://www.stubhub.com/${slug}-tickets`;
 }
 
 function formatPrice(price: { amount: number; currency: string } | null) {
@@ -93,63 +87,30 @@ export function StadiumCard({
         {/* Game details */}
         <div className="space-y-2.5">
           {venue.games.map((game) => {
-            const parts = game.name.split(/\s+(?:vs?\.?|VS\.?)\s+/);
-            const home = parts[0];
-            const away = parts.length > 1 ? parts.slice(1).join(" vs ") : null;
             const price = formatPrice(game.min_price);
             const kalshiUrl = game.odds
               ? `https://kalshi.com/markets/KXNBAGAME/${game.odds.kalshi_event}`
               : null;
 
             return (
-              <div key={game.id} className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 text-xs text-gray-400">
-                  <Clock className="size-3" />
-                  {formatTimeEST(game.est_time)}
-                  {price && (
-                    <span className="text-emerald-600 font-mono">
-                      {price}
-                    </span>
-                  )}
-                  {game.odds && kalshiUrl && (
-                    <a
-                      href={kalshiUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-mono text-emerald-600 hover:underline"
-                    >
-                      {game.odds.away_win}%-{game.odds.home_win}%
-                    </a>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {away && (
-                    <a
-                      href={stubhubUrl(home)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-xs text-blue-500 hover:underline"
-                    >
-                      StubHub <ExternalLink className="size-3" />
-                    </a>
-                  )}
+              <div key={game.id} className="flex items-center gap-2 text-xs text-gray-400">
+                <Clock className="size-3" />
+                {formatTimeEST(game.est_time)}
+                {price && (
+                  <span className="text-emerald-600 font-mono">
+                    {price}
+                  </span>
+                )}
+                {game.odds && kalshiUrl && (
                   <a
-                    href="https://www.espn.com/nba/scoreboard"
+                    href={kalshiUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-xs text-blue-500 hover:underline"
+                    className="font-mono text-emerald-600 hover:underline"
                   >
-                    ESPN <ExternalLink className="size-3" />
+                    {game.odds.away_win}%-{game.odds.home_win}%
                   </a>
-                  <a
-                    href={game.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-xs text-blue-500 hover:underline"
-                  >
-                    Tickets <ExternalLink className="size-3" />
-                  </a>
-                </div>
+                )}
               </div>
             );
           })}
