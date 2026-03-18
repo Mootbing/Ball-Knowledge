@@ -188,7 +188,7 @@ function TransitCards({
                       className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 bg-[#191919] text-emerald-400 font-semibold hover:bg-[#2a2a2a] transition-colors no-underline border border-white/10"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      UBER ~&lt;{extractUpperBound(times.uberEstimate)}
+                      <span className="text-white">UBER</span> <span className="text-emerald-400">~&lt;{extractUpperBound(times.uberEstimate)}</span>
                     </a>
                   )}
                   {times.lyftEstimate && (
@@ -199,7 +199,7 @@ function TransitCards({
                       className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 bg-[#d4004c] text-emerald-400 font-semibold hover:bg-[#e0105a] transition-colors no-underline"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      LYFT ~&lt;{extractUpperBound(times.lyftEstimate)}
+                      <span className="text-white">LYFT</span> <span className="text-emerald-400">~&lt;{extractUpperBound(times.lyftEstimate)}</span>
                     </a>
                   )}
                 </div>
