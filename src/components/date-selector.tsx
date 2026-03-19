@@ -219,7 +219,7 @@ export function DateSelector({
                 >
                   <span className="leading-none">{dayNum}</span>
                   {hasGames && count > 0 && (
-                    <span className={`text-[8px] leading-none mt-0.5 ${isSelected ? "text-[--primary-foreground]/70" : "text-[--primary]"}`}>
+                    <span className={`text-[8px] leading-none mt-0.5 ${isSelected ? "text-[--primary-foreground]/70" : "text-green-400"}`}>
                       {count}
                     </span>
                   )}
