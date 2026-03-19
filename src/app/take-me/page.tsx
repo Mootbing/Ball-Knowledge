@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { setOptions, importLibrary } from "@googlemaps/js-api-loader";
+import { FrontierPanel } from "@/components/frontier-panel";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -395,7 +396,7 @@ function TakeMePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [transitPref, setTransitPref] = useState<"all" | "bus" | "train">(
+  const [transitPref, setTransitPref] = useState<"all" | "bus" | "train" | "frontier">(
     "all"
   );
 
@@ -408,8 +409,20 @@ function TakeMePage() {
   const [swappedToTransit, setSwappedToTransit] = useState<Set<string>>(
     new Set()
   );
+  // Transit sub-mode toggles (Show Train / Show Bus)
+  const [shownTransitModes, setShownTransitModes] = useState<Set<string>>(new Set());
+  const [transitModeData, setTransitModeData] = useState<
+    Record<string, { minutes: number | null; fare: string | null; departureTime: string | null; arrivalTime: string | null }>
+  >({});
+  const [transitModeLoading, setTransitModeLoading] = useState<Set<string>>(new Set());
+
+  const handleFrontierResults = useCallback((results: Itinerary[]) => {
+    setItineraries(results);
+    setLoading(false);
+  }, []);
 
   const fetchItineraries = useCallback(async () => {
+    if (transitPref === "frontier") { setItineraries([]); setLoading(false); return; }
     if (!originLat || !originLng || !venue || !date || !time) return;
     setLoading(true);
     setError(null);
@@ -517,6 +530,41 @@ function TakeMePage() {
       else next.add(key);
       return next;
     });
+  }, []);
+
+  const toggleTransitModeView = useCallback((key: string) => {
+    setShownTransitModes((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
+  const fetchTransitModeData = useCallback(async (
+    key: string,
+    fromLat: number, fromLng: number,
+    toLat: number, toLng: number,
+    transitMode: "bus" | "rail",
+  ) => {
+    setTransitModeLoading((prev) => new Set(prev).add(key));
+    try {
+      const res = await fetch("/api/transit-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fromLat, fromLng, toLat, toLng, transitMode }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTransitModeData((prev) => ({ ...prev, [key]: data }));
+      }
+    } finally {
+      setTransitModeLoading((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    }
   }, []);
 
   // Draw itinerary legs on map when expanded itinerary changes
@@ -868,8 +916,9 @@ function TakeMePage() {
             ["all", "ALL", null],
             ["bus", "BUS", Bus],
             ["train", "TRAIN", TrainFront],
+            ["frontier", "FRONTIER", Plane],
           ] as [
-            "all" | "bus" | "train",
+            "all" | "bus" | "train" | "frontier",
             string,
             typeof Bus | null,
           ][]
@@ -883,7 +932,9 @@ function TakeMePage() {
                   ? "bg-[--color-bus]/10 text-[--color-bus] border border-[--color-bus]/30"
                   : key === "train"
                     ? "bg-[--color-train]/10 text-[--color-train] border border-[--color-train]/30"
-                    : "bg-white/5 text-foreground border border-white/10"
+                    : key === "frontier"
+                      ? "bg-[--color-flight]/10 text-[--color-flight] border border-[--color-flight]/30"
+                      : "bg-white/5 text-foreground border border-white/10"
                 : "text-[--color-dim] hover:text-foreground border border-transparent hover:border-white/5"
             }`}
           >
@@ -892,6 +943,20 @@ function TakeMePage() {
           </button>
         ))}
       </div>
+
+      {/* Frontier search form */}
+      {transitPref === "frontier" && (
+        <FrontierPanel
+          date={date}
+          gameTime={time}
+          venueName={venue}
+          originLat={parseFloat(originLat) || undefined}
+          originLng={parseFloat(originLng) || undefined}
+          venueLat={parseFloat(venueLat) || undefined}
+          venueLng={parseFloat(venueLng) || undefined}
+          onResults={handleFrontierResults}
+        />
+      )}
 
       {/* Results */}
       <main className="px-4 py-4">
@@ -912,11 +977,20 @@ function TakeMePage() {
           </div>
         ) : itineraries.length === 0 ? (
           <div className="text-center py-20 text-[--color-dim]">
-            <Navigation className="size-8 mx-auto mb-3" />
-            <p className="text-sm font-mono">NO ROUTES FOUND</p>
-            <p className="text-xs mt-1 font-mono">
-              No bus, train, or drive options available for this game
-            </p>
+            {transitPref === "frontier" ? (
+              <>
+                <Plane className="size-8 mx-auto mb-3" />
+                <p className="text-sm font-mono">SEARCH FRONTIER ROUTES ABOVE</p>
+              </>
+            ) : (
+              <>
+                <Navigation className="size-8 mx-auto mb-3" />
+                <p className="text-sm font-mono">NO ROUTES FOUND</p>
+                <p className="text-xs mt-1 font-mono">
+                  No bus, train, or drive options available for this game
+                </p>
+              </>
+            )}
           </div>
         ) : (
           <div className="space-y-3">
@@ -1074,6 +1148,7 @@ function TakeMePage() {
                           const enrichData = itEnrichments?.[i];
                           const swapKey = `${it.id}:${i}`;
                           const isSwapped = swappedToTransit.has(swapKey);
+                          const isNativeTransit = leg.mode === "transit" && !isSwapped;
 
                           // If enriched and swapped to transit, show transit data instead
                           const displayMode =
@@ -1196,8 +1271,153 @@ function TakeMePage() {
                                         (TRANSIT)
                                       </span>
                                     )}
+                                    {isNativeTransit && (
+                                      <>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            const key = `${it.id}:${i}:train`;
+                                            toggleTransitModeView(key);
+                                            if (!transitModeData[key]) {
+                                              fetchTransitModeData(key, leg.fromLat, leg.fromLng, leg.toLat, leg.toLng, "rail");
+                                            }
+                                          }}
+                                          className={`text-[10px] font-mono cursor-pointer transition-colors ${
+                                            shownTransitModes.has(`${it.id}:${i}:train`)
+                                              ? "text-[--color-train] font-semibold"
+                                              : "text-[--color-dim] hover:text-[--color-train]"
+                                          }`}
+                                        >
+                                          ({shownTransitModes.has(`${it.id}:${i}:train`) ? "Hide" : "Show"} Train)
+                                        </button>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            const key = `${it.id}:${i}:bus`;
+                                            toggleTransitModeView(key);
+                                            if (!transitModeData[key]) {
+                                              fetchTransitModeData(key, leg.fromLat, leg.fromLng, leg.toLat, leg.toLng, "bus");
+                                            }
+                                          }}
+                                          className={`text-[10px] font-mono cursor-pointer transition-colors ${
+                                            shownTransitModes.has(`${it.id}:${i}:bus`)
+                                              ? "text-[--color-bus] font-semibold"
+                                              : "text-[--color-dim] hover:text-[--color-bus]"
+                                          }`}
+                                        >
+                                          ({shownTransitModes.has(`${it.id}:${i}:bus`) ? "Hide" : "Show"} Bus)
+                                        </button>
+                                      </>
+                                    )}
                                   </div>
 
+                                  {/* Train/Bus toggle sections for native transit legs */}
+                                  {isNativeTransit && (
+                                    <>
+                                      {shownTransitModes.has(`${it.id}:${i}:train`) && (
+                                        <div className="mt-2 ml-1 pl-2 border-l-2 border-[--color-train]/30">
+                                          {transitModeLoading.has(`${it.id}:${i}:train`) ? (
+                                            <div className="flex items-center gap-1.5 text-xs font-mono text-[--color-dim]">
+                                              <Loader2 className="size-3 animate-spin" />
+                                              <span>Calculating train time...</span>
+                                            </div>
+                                          ) : transitModeData[`${it.id}:${i}:train`]?.minutes != null ? (
+                                            <div className="text-xs font-mono space-y-0.5 text-[--color-dim]">
+                                              <div className="flex items-center gap-1.5 text-[--color-train] font-semibold">
+                                                <TrainFront className="size-3" />
+                                                <span>TRAIN</span>
+                                              </div>
+                                              <div className="flex items-center gap-1">
+                                                <MapPin className="size-3" />
+                                                <span>{leg.from}</span>
+                                                <span>→</span>
+                                                <span>{leg.to}</span>
+                                              </div>
+                                              <div className="flex items-center gap-2">
+                                                {transitModeData[`${it.id}:${i}:train`]!.departureTime && (
+                                                  <span>
+                                                    {formatTime(transitModeData[`${it.id}:${i}:train`]!.departureTime!)} →{" "}
+                                                    {formatTime(transitModeData[`${it.id}:${i}:train`]!.arrivalTime!)}
+                                                  </span>
+                                                )}
+                                                <span>·</span>
+                                                <span>~{formatDuration(transitModeData[`${it.id}:${i}:train`]!.minutes!)}</span>
+                                                {transitModeData[`${it.id}:${i}:train`]!.fare && (
+                                                  <>
+                                                    <span>·</span>
+                                                    <span className="text-emerald-400">{transitModeData[`${it.id}:${i}:train`]!.fare}</span>
+                                                  </>
+                                                )}
+                                              </div>
+                                              <a
+                                                href={`https://www.google.com/maps/dir/?api=1&origin=${leg.fromLat},${leg.fromLng}&destination=${leg.toLat},${leg.toLng}&travelmode=transit`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded text-xs font-medium border border-[--color-train]/30 text-[--color-train] hover:bg-[--color-train]/10 transition-colors"
+                                                onClick={(e) => e.stopPropagation()}
+                                              >
+                                                Directions <ArrowRight className="size-3" />
+                                              </a>
+                                            </div>
+                                          ) : (
+                                            <div className="text-xs font-mono text-[--color-dim]">No train route available</div>
+                                          )}
+                                        </div>
+                                      )}
+                                      {shownTransitModes.has(`${it.id}:${i}:bus`) && (
+                                        <div className="mt-2 ml-1 pl-2 border-l-2 border-[--color-bus]/30">
+                                          {transitModeLoading.has(`${it.id}:${i}:bus`) ? (
+                                            <div className="flex items-center gap-1.5 text-xs font-mono text-[--color-dim]">
+                                              <Loader2 className="size-3 animate-spin" />
+                                              <span>Calculating bus time...</span>
+                                            </div>
+                                          ) : transitModeData[`${it.id}:${i}:bus`]?.minutes != null ? (
+                                            <div className="text-xs font-mono space-y-0.5 text-[--color-dim]">
+                                              <div className="flex items-center gap-1.5 text-[--color-bus] font-semibold">
+                                                <Bus className="size-3" />
+                                                <span>BUS</span>
+                                              </div>
+                                              <div className="flex items-center gap-1">
+                                                <MapPin className="size-3" />
+                                                <span>{leg.from}</span>
+                                                <span>→</span>
+                                                <span>{leg.to}</span>
+                                              </div>
+                                              <div className="flex items-center gap-2">
+                                                {transitModeData[`${it.id}:${i}:bus`]!.departureTime && (
+                                                  <span>
+                                                    {formatTime(transitModeData[`${it.id}:${i}:bus`]!.departureTime!)} →{" "}
+                                                    {formatTime(transitModeData[`${it.id}:${i}:bus`]!.arrivalTime!)}
+                                                  </span>
+                                                )}
+                                                <span>·</span>
+                                                <span>~{formatDuration(transitModeData[`${it.id}:${i}:bus`]!.minutes!)}</span>
+                                                {transitModeData[`${it.id}:${i}:bus`]!.fare && (
+                                                  <>
+                                                    <span>·</span>
+                                                    <span className="text-emerald-400">{transitModeData[`${it.id}:${i}:bus`]!.fare}</span>
+                                                  </>
+                                                )}
+                                              </div>
+                                              <a
+                                                href={`https://www.google.com/maps/dir/?api=1&origin=${leg.fromLat},${leg.fromLng}&destination=${leg.toLat},${leg.toLng}&travelmode=transit`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded text-xs font-medium border border-[--color-bus]/30 text-[--color-bus] hover:bg-[--color-bus]/10 transition-colors"
+                                                onClick={(e) => e.stopPropagation()}
+                                              >
+                                                Directions <ArrowRight className="size-3" />
+                                              </a>
+                                            </div>
+                                          ) : (
+                                            <div className="text-xs font-mono text-[--color-dim]">No bus route available</div>
+                                          )}
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
+
+                                  {!isNativeTransit && (<>
                                   <div className={`mt-1 text-xs font-mono space-y-0.5 ${isSwapped ? "text-[--color-transit]/70" : "text-[--color-dim]"}`}>
                                     <div className="flex items-center gap-1">
                                       <MapPin className="size-3" />
@@ -1251,8 +1471,11 @@ function TakeMePage() {
                                         leg.cost > 0 && (
                                           <>
                                             <span>·</span>
-                                            <span className="text-emerald-400">
-                                              ~${leg.cost}
+                                            <span>
+                                              {leg.mode === "bus" && <span className="text-white">FLIXBUS </span>}
+                                              <span className="text-emerald-400">
+                                                ~${leg.cost}
+                                              </span>
                                             </span>
                                           </>
                                         )}
@@ -1374,7 +1597,7 @@ function TakeMePage() {
                                             href={leg.bookingUrl}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${modeBgColor(displayMode)} hover:opacity-80 transition-opacity`}
+                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border border-white text-white hover:bg-white/10 transition-colors"
                                             onClick={(e) =>
                                               e.stopPropagation()
                                             }
@@ -1422,6 +1645,7 @@ function TakeMePage() {
                                       </>
                                     )}
                                   </div>
+                                  </>)}
                                 </div>
                               </div>
                             </div>

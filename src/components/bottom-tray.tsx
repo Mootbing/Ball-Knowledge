@@ -258,6 +258,9 @@ export function BottomTray({
   const [isAnimating, setIsAnimating] = useState(false);
   const prevTrayState = useRef(trayState);
   const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
+  // Track which transit sub-modes are visible per event
+  const [shownTrains, setShownTrains] = useState<Set<string>>(new Set());
+  const [shownBuses, setShownBuses] = useState<Set<string>>(new Set());
 
   // Sort state
   const trayLsKey = "balltastic_tray";
@@ -557,7 +560,7 @@ export function BottomTray({
                     if (event.lat != null && event.lng != null) {
                       const vLat = event.lat!;
                       const vLng = event.lng!;
-                      for (const s of [...airports, ...trains, ...buses]) {
+                      for (const s of airports) {
                         handleEnrich(vLat, vLng, s);
                       }
                       const venueGames = games.filter((g) => g.venue === event.venue);
@@ -645,7 +648,53 @@ export function BottomTray({
                       {/* Transit section */}
                       {(airports.length > 0 || trains.length > 0 || buses.length > 0) && event.lat != null && event.lng != null && (
                         <div className="mt-2 space-y-1.5">
-                          <div className="text-[10px] font-mono tracking-widest text-[--color-dim] uppercase">TRANSIT</div>
+                          <div className="flex items-center gap-2">
+                            <div className="text-[10px] font-mono tracking-widest text-[--color-dim] uppercase">TRANSIT</div>
+                            {trains.length > 0 && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShownTrains((prev) => {
+                                    const next = new Set(prev);
+                                    if (next.has(event.id)) { next.delete(event.id); } else {
+                                      next.add(event.id);
+                                      for (const s of trains) handleEnrich(event.lat!, event.lng!, s);
+                                    }
+                                    return next;
+                                  });
+                                }}
+                                className={`text-[10px] font-mono px-1.5 py-0.5 rounded border transition-colors ${
+                                  shownTrains.has(event.id)
+                                    ? "border-[--color-train]/30 text-[--color-train] bg-[--color-train]/10 font-semibold"
+                                    : "border-white/10 text-[--color-dim] hover:text-[--color-train] hover:border-[--color-train]/20"
+                                }`}
+                              >
+                                {shownTrains.has(event.id) ? "Hide" : "Show"} Trains
+                              </button>
+                            )}
+                            {buses.length > 0 && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShownBuses((prev) => {
+                                    const next = new Set(prev);
+                                    if (next.has(event.id)) { next.delete(event.id); } else {
+                                      next.add(event.id);
+                                      for (const s of buses) handleEnrich(event.lat!, event.lng!, s);
+                                    }
+                                    return next;
+                                  });
+                                }}
+                                className={`text-[10px] font-mono px-1.5 py-0.5 rounded border transition-colors ${
+                                  shownBuses.has(event.id)
+                                    ? "border-[--color-bus]/30 text-[--color-bus] bg-[--color-bus]/10 font-semibold"
+                                    : "border-white/10 text-[--color-dim] hover:text-[--color-bus] hover:border-[--color-bus]/20"
+                                }`}
+                              >
+                                {shownBuses.has(event.id) ? "Hide" : "Show"} Bus
+                              </button>
+                            )}
+                          </div>
                           {airports.length > 0 && (
                             <TransitCards
                               stops={airports}
@@ -664,27 +713,19 @@ export function BottomTray({
                           {airports.length > 0 && (
                             <div className="flex flex-wrap gap-1.5 pl-1">
                               {airports.map((apt) => (
-                                <span key={apt.code} className="inline-flex items-center gap-0">
-                                  <a
-                                    href={`https://www.google.com/travel/flights?q=flights+from+${nearestUserAirport ?? ""}+to+${apt.code}+on+${date}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-[11px] font-mono text-[--color-flight]/70 hover:text-[--color-flight] underline inline-flex items-center gap-0.5"
-                                  >
-                                    <Plane className="size-2.5" /> {nearestUserAirport ?? "?"} → {apt.code}
-                                  </a>
-                                  <a
-                                    href={`/flights?to=${apt.code}${nearestUserAirport ? `&from=${nearestUserAirport}` : ""}&date=${date}`}
-                                    className="ml-0.5 inline-flex items-center justify-center w-4 h-4 rounded bg-emerald-400/20 text-emerald-400 text-[8px] font-black hover:bg-emerald-400/30 transition-colors leading-none"
-                                    title="Frontier flights"
-                                  >
-                                    F
-                                  </a>
-                                </span>
+                                <a
+                                  key={apt.code}
+                                  href={`https://www.google.com/travel/flights?q=flights+from+${nearestUserAirport ?? ""}+to+${apt.code}+on+${date}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[11px] font-mono text-[--color-flight]/70 hover:text-[--color-flight] underline inline-flex items-center gap-0.5"
+                                >
+                                  <Plane className="size-2.5" /> {nearestUserAirport ?? "?"} → {apt.code}
+                                </a>
                               ))}
                             </div>
                           )}
-                          {trains.length > 0 && (
+                          {shownTrains.has(event.id) && trains.length > 0 && (
                             <TransitCards
                               stops={trains}
                               icon={TrainFront}
@@ -699,7 +740,7 @@ export function BottomTray({
                               colorClass="text-[--color-train]"
                             />
                           )}
-                          {buses.length > 0 && (
+                          {shownBuses.has(event.id) && buses.length > 0 && (
                             <TransitCards
                               stops={buses}
                               icon={BusFront}

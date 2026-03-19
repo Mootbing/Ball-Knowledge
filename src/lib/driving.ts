@@ -48,7 +48,8 @@ async function fetchGoogleDirections(
   fromLat: number, fromLng: number,
   toLat: number, toLng: number,
   mode: "driving" | "transit",
-  timeConstraint?: { arriveBy?: number; departAfter?: number } // Unix seconds
+  timeConstraint?: { arriveBy?: number; departAfter?: number }, // Unix seconds
+  transitMode?: "bus" | "rail"
 ): Promise<{
   minutes: number;
   fareUsd: string | null;
@@ -62,6 +63,9 @@ async function fetchGoogleDirections(
       url += `&arrival_time=${timeConstraint.arriveBy}`;
     } else if (mode === "transit" && timeConstraint?.departAfter) {
       url += `&departure_time=${timeConstraint.departAfter}`;
+    }
+    if (mode === "transit" && transitMode) {
+      url += `&transit_mode=${transitMode}`;
     }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
@@ -147,6 +151,29 @@ export async function getTravelTimes(
 
   cache.set(key, result);
   return result;
+}
+
+export async function getTransitTime(
+  fromLat: number, fromLng: number,
+  toLat: number, toLng: number,
+  transitMode: "bus" | "rail",
+  timeConstraint?: { arriveBy?: number; departAfter?: number }
+): Promise<{
+  minutes: number | null;
+  fare: string | null;
+  departureTime: string | null;
+  arrivalTime: string | null;
+}> {
+  const result = await fetchGoogleDirections(
+    fromLat, fromLng, toLat, toLng, "transit", timeConstraint, transitMode
+  );
+  if (!result) return { minutes: null, fare: null, departureTime: null, arrivalTime: null };
+  return {
+    minutes: result.minutes,
+    fare: result.fareUsd,
+    departureTime: result.departureTime ? new Date(result.departureTime * 1000).toISOString() : null,
+    arrivalTime: result.arrivalTime ? new Date(result.arrivalTime * 1000).toISOString() : null,
+  };
 }
 
 /** Small delay helper */

@@ -1,6 +1,11 @@
 import fs from "fs";
 import path from "path";
 import { searchGTFS, findNearbyStops, type ModeFilter } from "./gtfs";
+import {
+  fetchFlixTrips,
+  gtfsIdToFlixId,
+  matchTripPrice,
+} from "./flixbus";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -197,6 +202,16 @@ export async function searchRoutes(
 
   // ── 2. Bus & Train (GTFS schedules — no API calls) ──
 
+  // Track FlixBus/Greyhound legs for price enrichment:
+  // { legRef, fromStopId, toStopId, departMinutes }
+  const flixPriceLookups: {
+    leg: Leg;
+    itin: Itinerary;
+    fromStopId: string;
+    toStopId: string;
+    departMin: number;
+  }[] = [];
+
   const gtfsModeFilter: ModeFilter = params.transitPref ?? "all";
   const gtfsResults = searchGTFS(
     originLat,
@@ -276,6 +291,14 @@ export async function searchRoutes(
     }
 
     // Transit legs (bus/train from GTFS)
+    // Track which legs are FlixBus/Greyhound for price lookup
+    const flixLegsInThisItin: {
+      leg: Leg;
+      fromStopId: string;
+      toStopId: string;
+      departMin: number;
+    }[] = [];
+
     for (let i = 0; i < git.legs.length; i++) {
       const gl = git.legs[i];
 
@@ -285,11 +308,9 @@ export async function searchRoutes(
       const bookingUrl =
         gl.carrier === "Amtrak"
           ? `https://www.amtrak.com/tickets/departure.html`
-          : gl.carrier === "Greyhound"
-            ? `https://www.greyhound.com/`
-            : `https://www.flixbus.com/`;
+          : `https://www.flixbus.com/`;
 
-      legs.push({
+      const leg: Leg = {
         mode: gl.mode,
         carrier: gl.carrier,
         routeName: gl.routeName,
@@ -302,10 +323,25 @@ export async function searchRoutes(
         depart: toIso(gameDateYMD, gl.departMinutes),
         arrive: toIso(gameDateYMD, gl.arriveMinutes),
         minutes: gl.durationMinutes,
-        cost: null, // GTFS has no fare info — don't BS
+        cost: null, // will be filled by FlixBus API if available
         bookingUrl,
         miles: gl.miles,
-      });
+      };
+      legs.push(leg);
+
+      // Track FlixBus/Greyhound legs for price enrichment
+      if (
+        (gl.carrier === "FlixBus" || gl.carrier === "Greyhound") &&
+        gtfsIdToFlixId(gl.fromStopId) &&
+        gtfsIdToFlixId(gl.toStopId)
+      ) {
+        flixLegsInThisItin.push({
+          leg,
+          fromStopId: gl.fromStopId,
+          toStopId: gl.toStopId,
+          departMin: gl.departMinutes,
+        });
+      }
     }
 
     // Last mile (drive from alighting stop to venue) — skip if very close
@@ -328,16 +364,22 @@ export async function searchRoutes(
       });
     }
 
-    itineraries.push({
+    const itin: Itinerary = {
       id: `transit-${idCounter++}`,
       totalMinutes: totalMin,
-      totalCost: null, // don't BS — any unknown makes total unknown
+      totalCost: null, // will be updated if FlixBus prices are found
       departureTime: legs[0].depart,
       arrivalTime: legs[legs.length - 1].arrive,
       bufferMinutes: 0,
       enriched: false,
       legs,
-    });
+    };
+    itineraries.push(itin);
+
+    // Register FlixBus legs for batch price lookup
+    for (const fl of flixLegsInThisItin) {
+      flixPriceLookups.push({ ...fl, itin });
+    }
   }
 
   // ── 3. Flight itineraries ──
@@ -482,6 +524,76 @@ export async function searchRoutes(
           enriched: false,
           legs,
         });
+      }
+    }
+  }
+
+  // ── 4. Enrich FlixBus/Greyhound legs with real prices ──
+
+  if (flixPriceLookups.length > 0) {
+    // Deduplicate route lookups: group by (from→to) to avoid duplicate API calls
+    const routeKey = (from: string, to: string) => `${from}|${to}`;
+    const uniqueRoutes = new Map<
+      string,
+      { fromId: string; toId: string }
+    >();
+
+    for (const fl of flixPriceLookups) {
+      const fromId = gtfsIdToFlixId(fl.fromStopId)!;
+      const toId = gtfsIdToFlixId(fl.toStopId)!;
+      const key = routeKey(fromId, toId);
+      if (!uniqueRoutes.has(key)) {
+        uniqueRoutes.set(key, { fromId, toId });
+      }
+    }
+
+    // Fetch prices in parallel (max 6 concurrent to respect rate limits)
+    const routeEntries = Array.from(uniqueRoutes.entries());
+    const tripCache = new Map<string, Awaited<ReturnType<typeof fetchFlixTrips>>>();
+
+    const BATCH_SIZE = 6;
+    for (let i = 0; i < routeEntries.length; i += BATCH_SIZE) {
+      const batch = routeEntries.slice(i, i + BATCH_SIZE);
+      const results = await Promise.all(
+        batch.map(async ([key, { fromId, toId }]) => {
+          const trips = await fetchFlixTrips(fromId, toId, gameDate);
+          return [key, trips] as const;
+        })
+      );
+      for (const [key, trips] of results) {
+        tripCache.set(key, trips);
+      }
+    }
+
+    // Apply prices + build FlixBus booking URLs
+    const [gy, gm, gd] = gameDate.split("-");
+    const flixRideDate = `${gd}.${gm}.${gy}`;
+    for (const fl of flixPriceLookups) {
+      const fromId = gtfsIdToFlixId(fl.fromStopId)!;
+      const toId = gtfsIdToFlixId(fl.toStopId)!;
+      const key = routeKey(fromId, toId);
+      const trips = tripCache.get(key);
+      if (!trips || trips.length === 0) continue;
+
+      // Build booking URL with city UUIDs from any trip on this route
+      const depCityId = trips[0].departureCityId;
+      const arrCityId = trips[0].arrivalCityId;
+      if (depCityId && arrCityId) {
+        const route = encodeURIComponent(`${fl.leg.from}-${fl.leg.to}`);
+        fl.leg.bookingUrl = `https://shop.flixbus.com/search?departureCity=${depCityId}&arrivalCity=${arrCityId}&route=${route}&rideDate=${flixRideDate}&adult=1&_locale=en_US&departureCountryCode=US&arrivalCountryCode=US&features%5Bfeature.enable_distribusion%5D=1&features%5Bfeature.train_cities_only%5D=0&features%5Bfeature.station_search%5D=0&features%5Bfeature.station_search_recommendation%5D=0&features%5Bfeature.darken_page%5D=1`;
+      }
+
+      const price = matchTripPrice(trips, fl.departMin);
+      if (price) {
+        fl.leg.cost = price.price;
+      }
+    }
+
+    // Recompute totalCost for itineraries that had FlixBus legs enriched
+    const affectedItins = Array.from(new Set(flixPriceLookups.map((fl) => fl.itin)));
+    for (const itin of affectedItins) {
+      if (itin.legs.every((l) => l.cost != null)) {
+        itin.totalCost = itin.legs.reduce((s, l) => s + (l.cost ?? 0), 0);
       }
     }
   }
