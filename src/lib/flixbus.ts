@@ -140,19 +140,19 @@ export function gtfsIdToFlixId(gtfsStopId: string): string | null {
 }
 
 /**
- * Find the best matching price for a specific departure from FlixBus trips.
+ * Find the best matching trip for a specific departure from FlixBus trips.
  *
  * Matches by finding the trip whose departure time is closest to the expected
  * departure (within a 30-minute window).
  *
  * @param trips     Parsed FlixBus trip results
  * @param departMin Expected departure in minutes from midnight (EST)
- * @returns Price in USD or null if no match
+ * @returns The matched FlixTrip or null if no match
  */
-export function matchTripPrice(
+export function matchTrip(
   trips: FlixTrip[],
   departMin: number
-): { price: number; currency: string } | null {
+): FlixTrip | null {
   if (trips.length === 0) return null;
 
   let bestTrip: FlixTrip | null = null;
@@ -168,7 +168,5 @@ export function matchTripPrice(
     }
   }
 
-  if (!bestTrip) return null;
-
-  return { price: bestTrip.price, currency: bestTrip.currency };
+  return bestTrip;
 }

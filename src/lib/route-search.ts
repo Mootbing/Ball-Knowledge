@@ -4,7 +4,7 @@ import { searchGTFS, findNearbyStops, type ModeFilter } from "./gtfs";
 import {
   fetchFlixTrips,
   gtfsIdToFlixId,
-  matchTripPrice,
+  matchTrip,
 } from "./flixbus";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -102,6 +102,29 @@ function estimateDriveMin(miles: number): number {
 
 function estimateFlightCost(miles: number): number {
   return Math.max(60, Math.round(miles * 0.12));
+}
+
+/** Estimate Amtrak coach fare from haversine miles (~$0.15/mi, $15 min). */
+function estimateAmtrakCost(miles: number): number {
+  return Math.max(15, Math.round(miles * 0.15));
+}
+
+/** Extract 3-letter Amtrak station code from GTFS stop ID (e.g. "a:NYP" → "NYP"). */
+function gtfsIdToAmtrakCode(gtfsStopId: string): string | null {
+  if (!gtfsStopId.startsWith("a:")) return null;
+  return gtfsStopId.substring(2);
+}
+
+/** Build pre-filled Amtrak booking URL. */
+function amtrakBookingUrl(
+  fromCode: string,
+  toCode: string,
+  dateYMD: string
+): string {
+  const [y, m, d] = dateYMD.split("-").length === 3
+    ? dateYMD.split("-")
+    : [dateYMD.substring(0, 4), dateYMD.substring(4, 6), dateYMD.substring(6, 8)];
+  return `https://www.amtrak.com/tickets/departure.html?fromStation=${fromCode}&toStation=${toCode}&departDate=${m}/${d}/${y}&Adult=1`;
 }
 
 /** Minimum layover between consecutive legs to ensure realistic transitions. */
@@ -305,10 +328,19 @@ export async function searchRoutes(
       // If there's a layover gap before this leg (not the first transit leg), add it implicitly
       // The frontend will detect gaps between legs
 
-      const bookingUrl =
-        gl.carrier === "Amtrak"
-          ? `https://www.amtrak.com/tickets/departure.html`
-          : `https://www.flixbus.com/`;
+      let bookingUrl: string;
+      let cost: number | null = null;
+      if (gl.carrier === "Amtrak") {
+        const fromCode = gtfsIdToAmtrakCode(gl.fromStopId);
+        const toCode = gtfsIdToAmtrakCode(gl.toStopId);
+        bookingUrl = fromCode && toCode
+          ? amtrakBookingUrl(fromCode, toCode, gameDate)
+          : `https://www.amtrak.com/tickets/departure.html`;
+        cost = estimateAmtrakCost(gl.miles);
+      } else {
+        bookingUrl = `https://www.flixbus.com/`;
+        // FlixBus/Greyhound cost filled later via API
+      }
 
       const leg: Leg = {
         mode: gl.mode,
@@ -323,7 +355,7 @@ export async function searchRoutes(
         depart: toIso(gameDateYMD, gl.departMinutes),
         arrive: toIso(gameDateYMD, gl.arriveMinutes),
         minutes: gl.durationMinutes,
-        cost: null, // will be filled by FlixBus API if available
+        cost,
         bookingUrl,
         miles: gl.miles,
       };
@@ -583,18 +615,34 @@ export async function searchRoutes(
         fl.leg.bookingUrl = `https://shop.flixbus.com/search?departureCity=${depCityId}&arrivalCity=${arrCityId}&route=${route}&rideDate=${flixRideDate}&adult=1&_locale=en_US&departureCountryCode=US&arrivalCountryCode=US&features%5Bfeature.enable_distribusion%5D=1&features%5Bfeature.train_cities_only%5D=0&features%5Bfeature.station_search%5D=0&features%5Bfeature.station_search_recommendation%5D=0&features%5Bfeature.darken_page%5D=1`;
       }
 
-      const price = matchTripPrice(trips, fl.departMin);
-      if (price) {
-        fl.leg.cost = price.price;
+      const matched = matchTrip(trips, fl.departMin);
+      if (matched) {
+        fl.leg.cost = matched.price;
+        // Update leg times with live API data so they match FlixBus website
+        fl.leg.depart = matched.departIso;
+        fl.leg.arrive = matched.arriveIso;
+        const depDate = new Date(matched.departIso);
+        const arrDate = new Date(matched.arriveIso);
+        fl.leg.minutes = Math.round(
+          (arrDate.getTime() - depDate.getTime()) / 60000
+        );
       }
     }
 
-    // Recompute totalCost for itineraries that had FlixBus legs enriched
+    // Recompute totalCost and timing for itineraries that had FlixBus legs enriched
     const affectedItins = Array.from(new Set(flixPriceLookups.map((fl) => fl.itin)));
     for (const itin of affectedItins) {
       if (itin.legs.every((l) => l.cost != null)) {
         itin.totalCost = itin.legs.reduce((s, l) => s + (l.cost ?? 0), 0);
       }
+      // Update itinerary departure/arrival from enriched leg times
+      itin.departureTime = itin.legs[0].depart;
+      itin.arrivalTime = itin.legs[itin.legs.length - 1].arrive;
+      itin.totalMinutes = Math.round(
+        (new Date(itin.arrivalTime).getTime() -
+          new Date(itin.departureTime).getTime()) /
+          60000
+      );
     }
   }
 

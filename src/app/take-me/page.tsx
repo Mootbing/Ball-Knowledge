@@ -1473,6 +1473,7 @@ function TakeMePage() {
                                             <span>·</span>
                                             <span>
                                               {leg.mode === "bus" && <span className="text-white">FLIXBUS </span>}
+                                              {leg.mode === "train" && <span className="text-white">AMTRAK </span>}
                                               <span className="text-emerald-400">
                                                 ~${leg.cost}
                                               </span>
