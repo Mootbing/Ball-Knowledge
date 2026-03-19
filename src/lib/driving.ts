@@ -133,6 +133,7 @@ export async function getTravelTimes(
   ]);
 
   const driveMin = driveResult?.minutes ?? estimateDriveMinutes(fromLat, fromLng, toLat, toLng);
+
   const rides = estimateRides(fromLat, fromLng, toLat, toLng, driveMin);
 
   const result: TravelTimes = {

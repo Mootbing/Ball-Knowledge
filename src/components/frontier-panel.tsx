@@ -12,9 +12,11 @@ import { Plane } from "lucide-react";
 const routes = routesRaw as { from: string; to: string }[];
 
 function sliderLabel(v: number) {
+  if (v === 0) return "Nonstop";
   return v >= 5 ? "Unlimited" : String(v);
 }
 function sliderToMaxLayovers(v: number) {
+  if (v === 0) return 0;
   return v >= 5 ? 10 : v;
 }
 
@@ -157,7 +159,7 @@ function pathToItinerary(
       depart: new Date(t).toISOString(),
       arrive: new Date(t + flightMins[i] * 60000).toISOString(),
       minutes: flightMins[i],
-      cost: null,
+      cost: 16,
       bookingUrl: buildFrontierUrl(from, to, date),
       miles: flightMiles[i],
       enrichable: false,
@@ -188,10 +190,12 @@ function pathToItinerary(
   });
   t += driveFromMin * 60000;
 
+  const totalCost = legs.reduce((s, l) => s + (l.cost ?? 0), 0) || null;
+
   return {
     id: `frontier-${path.stops.map(s => cityToIata[s] ?? s).join("-")}`,
     totalMinutes: totalMin,
-    totalCost: null,
+    totalCost,
     departureTime: new Date(departMs).toISOString(),
     arrivalTime: new Date(t).toISOString(),
     bufferMinutes: PRE_FLIGHT_MIN,
@@ -316,7 +320,7 @@ export function FrontierPanel({
             MAX STOPS: <span className="text-[--primary] font-bold">{sliderLabel(slider)}</span>
           </label>
           <Slider
-            min={1}
+            min={0}
             max={5}
             step={1}
             value={[slider]}

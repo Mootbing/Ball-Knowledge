@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import {
   Plane,
   Bus,
+  BusFront,
   Car,
   TrainFront,
   Clock,
@@ -92,7 +93,7 @@ function modeIcon(mode: string) {
     case "rideshare":
       return <Car className="size-4" />;
     case "bus":
-      return <Bus className="size-4" />;
+      return <BusFront className="size-4" />;
     case "train":
       return <TrainFront className="size-4" />;
     case "transit":
@@ -914,7 +915,7 @@ function TakeMePage() {
         {(
           [
             ["all", "ALL", null],
-            ["bus", "BUS", Bus],
+            ["bus", "BUS", BusFront],
             ["train", "TRAIN", TrainFront],
             ["frontier", "FRONTIER", Plane],
           ] as [
@@ -1374,7 +1375,7 @@ function TakeMePage() {
                                           ) : transitModeData[`${it.id}:${i}:bus`]?.minutes != null ? (
                                             <div className="text-xs font-mono space-y-0.5 text-[--color-dim]">
                                               <div className="flex items-center gap-1.5 text-[--color-bus] font-semibold">
-                                                <Bus className="size-3" />
+                                                <BusFront className="size-3" />
                                                 <span>BUS</span>
                                               </div>
                                               <div className="flex items-center gap-1">
