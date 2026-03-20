@@ -30,6 +30,13 @@ function findNearestCity(lat: number, lng: number): string | null {
   return best;
 }
 
+/** Parse "HH:MM" or "YYYY-MM-DD HH:MM" into minutes from midnight. */
+function parseLocalTime(t: string): number | null {
+  const m = t.match(/(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+}
+
 // ── Types matching take-me page ────────────────────────────────────────────
 
 interface Leg {
@@ -245,36 +252,111 @@ export function FrontierPanel({
 
   const adj = useMemo(() => buildAdjacency(routes), []);
 
-  const doSearch = useCallback((searchFroms: string[], searchTos: string[]) => {
+  const doSearch = useCallback(async (searchFroms: string[], searchTos: string[]) => {
     if (searchFroms.length === 0 || searchTos.length === 0) return;
     if (!originLat || !originLng || !venueLat || !venueLng) return;
 
     setLoading(true);
-    setTimeout(() => {
-      const seen = new Set<string>();
-      const allPaths: Path[] = [];
-      for (const from of searchFroms) {
-        for (const to of searchTos) {
-          if (from === to) continue;
-          for (const p of findPaths(adj, from, to, sliderToMaxLayovers(slider))) {
-            const key = p.stops.join("→");
-            if (!seen.has(key)) { seen.add(key); allPaths.push(p); }
+
+    // Step 1: Build itineraries from pathfinder (sync)
+    const seen = new Set<string>();
+    const allPaths: Path[] = [];
+    for (const from of searchFroms) {
+      for (const to of searchTos) {
+        if (from === to) continue;
+        for (const p of findPaths(adj, from, to, sliderToMaxLayovers(slider))) {
+          const key = p.stops.join("→");
+          if (!seen.has(key)) { seen.add(key); allPaths.push(p); }
+        }
+      }
+    }
+    allPaths.sort((a, b) => a.layovers - b.layovers || a.stops.length - b.stops.length);
+
+    const itineraries = allPaths
+      .map(p => pathToItinerary(
+        p, originLat!, originLng!, venueLat!, venueLng!,
+        venueName ?? "Venue", date, gameTime ?? "19:00",
+      ))
+      .filter((it): it is Itinerary => it !== null);
+
+    // Step 2: Collect unique flight legs for AirLabs verification
+    const flightLegs: { dep: string; arr: string }[] = [];
+    const seenRoutes = new Set<string>();
+    for (const itin of itineraries) {
+      for (const leg of itin.legs) {
+        if (leg.carrier === "Frontier" && leg.mode === "flight") {
+          const depIata = cityToIata[leg.from];
+          const arrIata = cityToIata[leg.to];
+          if (depIata && arrIata) {
+            const key = `${depIata}-${arrIata}`;
+            if (!seenRoutes.has(key)) {
+              seenRoutes.add(key);
+              flightLegs.push({ dep: depIata, arr: arrIata });
+            }
           }
         }
       }
-      allPaths.sort((a, b) => a.layovers - b.layovers || a.stops.length - b.stops.length);
+    }
 
-      const itineraries = allPaths
-        .map(p => pathToItinerary(
-          p, originLat!, originLng!, venueLat!, venueLng!,
-          venueName ?? "Venue", date, gameTime ?? "19:00",
-        ))
-        .filter((it): it is Itinerary => it !== null);
+    // Step 3: Verify with AirLabs API
+    const verified = new Map<string, { exists: boolean; flights: any[] }>();
+    if (flightLegs.length > 0) {
+      try {
+        const res = await fetch("/api/frontier-check", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ legs: flightLegs, date }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          for (const r of data.results) {
+            verified.set(`${r.dep}-${r.arr}`, {
+              exists: r.exists,
+              flights: r.flights,
+            });
+          }
+        }
+      } catch (e) {
+        console.warn("[frontier] AirLabs verification failed:", e);
+      }
+    }
 
-      setResultCount(itineraries.length);
-      onResultsRef.current(itineraries);
-      setLoading(false);
-    }, 0);
+    // Step 4: Filter out itineraries with non-existent flights & enrich verified ones
+    const enriched = itineraries.filter(itin => {
+      for (const leg of itin.legs) {
+        if (leg.carrier !== "Frontier" || leg.mode !== "flight") continue;
+        const depIata = cityToIata[leg.from];
+        const arrIata = cityToIata[leg.to];
+        if (!depIata || !arrIata) continue;
+
+        const check = verified.get(`${depIata}-${arrIata}`);
+        if (!check) continue; // API didn't respond for this route, keep as-is
+        if (!check.exists) return false; // flight doesn't operate on this date
+
+        // Enrich with real flight data
+        const f = check.flights[0];
+        if (f?.flight_iata) {
+          leg.routeName = f.flight_iata;
+        }
+        // Update duration from real schedule times
+        if (f?.dep_time && f?.arr_time) {
+          const depMin = parseLocalTime(f.dep_time);
+          const arrMin = parseLocalTime(f.arr_time);
+          if (depMin !== null && arrMin !== null) {
+            let duration = arrMin - depMin;
+            if (duration <= 0) duration += 1440; // overnight flight
+            leg.minutes = duration;
+          }
+        }
+      }
+      // Mark as enriched if we verified at least one leg
+      itin.enriched = verified.size > 0;
+      return true;
+    });
+
+    setResultCount(enriched.length);
+    onResultsRef.current(enriched);
+    setLoading(false);
   }, [adj, slider, originLat, originLng, venueLat, venueLng, venueName, date, gameTime]);
 
   // Auto-search on mount when from/to are pre-filled

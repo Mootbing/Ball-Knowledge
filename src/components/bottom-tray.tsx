@@ -13,7 +13,12 @@ import {
   ArrowUpRight,
   RefreshCw,
   Navigation,
+  ShieldCheck,
+  Check,
+  Ban,
+  Loader2,
 } from "lucide-react";
+import type { VenuePolicy } from "@/lib/venue-policies";
 
 type TrayState = "collapsed" | "peek" | "expanded";
 
@@ -261,6 +266,7 @@ export function BottomTray({
   // Track which transit sub-modes are visible per event
   const [shownTrains, setShownTrains] = useState<Set<string>>(new Set());
   const [shownBuses, setShownBuses] = useState<Set<string>>(new Set());
+  const [shownPolicies, setShownPolicies] = useState<Set<string>>(new Set());
 
   // Sort state
   const trayLsKey = "balltastic_tray";
@@ -396,6 +402,33 @@ export function BottomTray({
       });
     }
   }, [enriched, enriching]);
+
+  // Venue policy state
+  const [venuePolicies, setVenuePolicies] = useState<Record<string, VenuePolicy>>({});
+  const [policyLoading, setPolicyLoading] = useState<Set<string>>(new Set());
+  const policyFailed = useRef<Set<string>>(new Set());
+
+  const handlePolicyLoad = useCallback(async (venueName: string) => {
+    if (venuePolicies[venueName] || policyLoading.has(venueName) || policyFailed.current.has(venueName)) return;
+    setPolicyLoading((prev) => new Set(prev).add(venueName));
+    try {
+      const res = await fetch(`/api/venue-policy?venue=${encodeURIComponent(venueName)}`);
+      if (res.ok) {
+        const data: VenuePolicy = await res.json();
+        setVenuePolicies((prev) => ({ ...prev, [venueName]: data }));
+      } else {
+        policyFailed.current.add(venueName);
+      }
+    } catch {
+      policyFailed.current.add(venueName);
+    } finally {
+      setPolicyLoading((prev) => {
+        const next = new Set(prev);
+        next.delete(venueName);
+        return next;
+      });
+    }
+  }, [venuePolicies, policyLoading]);
 
   // Auto-scroll to selected venue
   useEffect(() => {
@@ -563,6 +596,7 @@ export function BottomTray({
                       for (const s of airports) {
                         handleEnrich(vLat, vLng, s);
                       }
+                      handlePolicyLoad(event.venue);
                       const venueGames = games.filter((g) => g.venue === event.venue);
                       onVenueClick({
                         venue: event.venue,
@@ -758,6 +792,98 @@ export function BottomTray({
                         </div>
                       )}
 
+                      {/* Venue policy section */}
+                      {(() => {
+                        const policy = venuePolicies[event.venue];
+                        const loading = policyLoading.has(event.venue);
+                        const expanded = shownPolicies.has(event.id);
+                        const allowed = policy?.items.filter((i) => i.allowed) ?? [];
+                        const prohibited = policy?.items.filter((i) => !i.allowed) ?? [];
+
+                        return (policy || loading) ? (
+                          <div className="mt-2">
+                            <div className="flex items-center gap-2">
+                              <div className="text-[10px] font-mono tracking-widest text-[--color-dim] uppercase flex items-center gap-1">
+                                <ShieldCheck className="size-3" /> VENUE POLICY
+                              </div>
+                              {policy && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShownPolicies((prev) => {
+                                      const next = new Set(prev);
+                                      if (next.has(event.id)) next.delete(event.id);
+                                      else next.add(event.id);
+                                      return next;
+                                    });
+                                  }}
+                                  className={`text-[10px] font-mono px-1.5 py-0.5 rounded border transition-colors ${
+                                    expanded
+                                      ? "border-amber-400/30 text-amber-400 bg-amber-400/10 font-semibold"
+                                      : "border-white/10 text-[--color-dim] hover:text-amber-400 hover:border-amber-400/20"
+                                  }`}
+                                >
+                                  {expanded ? "Hide" : "Details"}
+                                </button>
+                              )}
+                            </div>
+                            {loading && !policy && (
+                              <div className="flex items-center gap-1.5 mt-1.5 text-[11px] font-mono text-[--color-dim]">
+                                <Loader2 className="size-3 animate-spin" /> Loading policy...
+                              </div>
+                            )}
+                            {policy && (
+                              <div className="mt-1">
+                                {/* Summary line — always visible */}
+                                <div className="text-[11px] font-mono text-[--color-dim]">
+                                  {policy.clearBagRequired && (
+                                    <span className="text-amber-400 font-semibold">Clear bag required</span>
+                                  )}
+                                  {policy.maxBagSize && (
+                                    <span>{policy.clearBagRequired ? " · " : ""}Max {policy.maxBagSize}</span>
+                                  )}
+                                </div>
+                                {/* Expanded details */}
+                                {expanded && (
+                                  <div className="mt-1.5 flex gap-4 text-[11px] font-mono">
+                                    {allowed.length > 0 && (
+                                      <div className="flex-1 min-w-0 space-y-0.5">
+                                        {allowed.map((item) => (
+                                          <div key={item.name} className="flex items-start gap-1 text-emerald-400">
+                                            <Check className="size-3 shrink-0 mt-0.5" />
+                                            <span>{item.name}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {prohibited.length > 0 && (
+                                      <div className="flex-1 min-w-0 space-y-0.5">
+                                        {prohibited.map((item) => (
+                                          <div key={item.name} className="flex items-start gap-1 text-red-400">
+                                            <Ban className="size-3 shrink-0 mt-0.5" />
+                                            <span>{item.name}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                                {expanded && policy.policyUrl && (
+                                  <a
+                                    href={policy.policyUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="mt-1.5 text-[10px] font-mono text-[--color-dim] hover:text-foreground underline inline-flex items-center gap-0.5"
+                                  >
+                                    View full policy <ArrowUpRight className="size-2.5" />
+                                  </a>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ) : null;
+                      })()}
+
                       {/* Links section */}
                       <div className="mt-2">
                         <div className="text-[10px] font-mono tracking-widest text-[--color-dim] uppercase mb-1">LINKS</div>
@@ -783,6 +909,11 @@ export function BottomTray({
                           <a href={`https://www.espn.com/nba/scoreboard/_/date/${date.replace(/-/g, "")}`} target="_blank" rel="noopener noreferrer" className="text-[--color-dim] hover:text-foreground underline inline-flex items-center gap-0.5">
                             ESPN <ArrowUpRight className="size-2.5" />
                           </a>
+                          {venuePolicies[event.venue]?.websiteUrl && (
+                            <a href={venuePolicies[event.venue].websiteUrl} target="_blank" rel="noopener noreferrer" className="text-[--color-dim] hover:text-foreground underline inline-flex items-center gap-0.5">
+                              VENUE <ArrowUpRight className="size-2.5" />
+                            </a>
+                          )}
                         </div>
                       </div>
 

@@ -394,6 +394,7 @@ function TakeMePage() {
 
   const [resultLimit, setResultLimit] = useState(10);
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
+  const [googleFlightsUrl, setGoogleFlightsUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -443,6 +444,7 @@ function TakeMePage() {
       if (!res.ok) throw new Error(`API error: ${res.status}`);
       const data = await res.json();
       setItineraries(data.itineraries ?? []);
+      setGoogleFlightsUrl(data.googleFlightsUrl ?? null);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to load itineraries"
@@ -959,6 +961,27 @@ function TakeMePage() {
         />
       )}
 
+      {/* Google Flights box */}
+      {transitPref !== "frontier" && googleFlightsUrl && !loading && (
+        <div className="mx-4 mt-3 px-4 py-3 rounded-lg border border-[--color-flight]/20 bg-[--color-flight]/5">
+          <div className="flex items-center gap-3">
+            <Plane className="size-5 text-[--color-flight] shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-mono font-semibold text-foreground">Flying instead?</p>
+              <p className="text-xs font-mono text-[--color-dim] mt-0.5">Check real-time prices and schedules on Google Flights</p>
+            </div>
+            <a
+              href={googleFlightsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded bg-[--color-flight] text-black text-xs font-mono font-semibold hover:opacity-90 transition-opacity"
+            >
+              Google Flights <ArrowRight className="size-3" />
+            </a>
+          </div>
+        </div>
+      )}
+
       {/* Results */}
       <main className="px-4 py-4">
         {loading ? (
@@ -1064,45 +1087,58 @@ function TakeMePage() {
 
                       {/* Times */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 text-sm font-mono font-medium text-foreground">
-                          <span>{formatTime(it.departureTime)}</span>
-                          <ArrowRight className="size-3 text-[--color-dim]" />
-                          <span>{formatTime(displayArrivalTime)}</span>
-                          {!it.enriched && !itEnrichments && it.legs.some((l) => l.enrichable) && (
-                            <span className="text-[#facc15] text-[10px] font-mono">
-                              (ESTIMATE)
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 text-xs font-mono text-[--color-dim] mt-0.5">
-                          <span>{formatDuration(displayTotalMinutes)}</span>
-                          <span>·</span>
-                          <span className="text-emerald-400 font-semibold">
-                            ~&lt;${displayTotalCost ?? it.totalCost ?? it.legs.reduce((s, l) => s + (l.cost ?? 0), 0)}
-                          </span>
-                          {it.legs.length > 1 && (
-                            <>
+                        {it.legs.some((l) => l.mode === "flight") ? (
+                          <>
+                            <div className="flex items-center gap-1.5 text-sm font-mono font-medium text-foreground">
+                              VIA {it.legs.filter((l) => l.mode === "flight").map((l) => l.routeName).join(", ")}
+                            </div>
+                            <div className="flex items-center gap-2 text-xs font-mono text-[--color-dim] mt-0.5">
+                              <span className="text-sky-400 font-semibold">UNKNOWN — Check Google Flights</span>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-1.5 text-sm font-mono font-medium text-foreground">
+                              <span>{formatTime(it.departureTime)}</span>
+                              <ArrowRight className="size-3 text-[--color-dim]" />
+                              <span>{formatTime(displayArrivalTime)}</span>
+                              {!it.enriched && !itEnrichments && it.legs.some((l) => l.enrichable) && (
+                                <span className="text-[#facc15] text-[10px] font-mono">
+                                  (ESTIMATE)
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 text-xs font-mono text-[--color-dim] mt-0.5">
+                              <span>{formatDuration(displayTotalMinutes)}</span>
                               <span>·</span>
-                              <span>
-                                {it.legs.filter(
-                                  (l) =>
-                                    l.mode === "bus" ||
-                                    l.mode === "train" ||
-                                    l.mode === "flight"
-                                ).length}{" "}
-                                leg
-                                {it.legs.filter(
-                                  (l) =>
-                                    l.mode === "bus" ||
-                                    l.mode === "train" ||
-                                    l.mode === "flight"
-                                ).length !== 1
-                                  ? "s"
-                                  : ""}
+                              <span className="text-emerald-400 font-semibold">
+                                ~&lt;${displayTotalCost ?? it.totalCost ?? it.legs.reduce((s, l) => s + (l.cost ?? 0), 0)}
                               </span>
-                            </>
-                          )}
-                        </div>
+                              {it.legs.length > 1 && (
+                                <>
+                                  <span>·</span>
+                                  <span>
+                                    {it.legs.filter(
+                                      (l) =>
+                                        l.mode === "bus" ||
+                                        l.mode === "train" ||
+                                        l.mode === "flight"
+                                    ).length}{" "}
+                                    leg
+                                    {it.legs.filter(
+                                      (l) =>
+                                        l.mode === "bus" ||
+                                        l.mode === "train" ||
+                                        l.mode === "flight"
+                                    ).length !== 1
+                                      ? "s"
+                                      : ""}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </>
+                        )}
                       </div>
 
                       {isExpanded ? (
@@ -1628,23 +1664,16 @@ function TakeMePage() {
                                           <ArrowRight className="size-3" />
                                         </a>
                                       )}
-                                    {displayMode === "flight" && (
-                                      <>
-                                        {leg.bookingUrl && (
-                                          <a
-                                            href={leg.bookingUrl}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border border-white text-white hover:bg-white/10 transition-colors"
-                                            onClick={(e) =>
-                                              e.stopPropagation()
-                                            }
-                                          >
-                                            FLIGHTS{" "}
-                                            <ArrowRight className="size-3" />
-                                          </a>
-                                        )}
-                                      </>
+                                    {displayMode === "flight" && leg.bookingUrl && (
+                                      <a
+                                        href={leg.bookingUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded text-xs font-mono font-semibold bg-sky-500/15 text-sky-400 border border-sky-500/30 hover:bg-sky-500/25 transition-colors"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        Check Google Flights for prices <ArrowRight className="size-3" />
+                                      </a>
                                     )}
                                   </div>
                                   </>)}

@@ -30,8 +30,11 @@ export async function GET(req: NextRequest) {
       limit: Math.min(Math.max(limit, 1), 30),
       transitPref,
     });
-    console.log("[take-me] Found", results.length, "itineraries");
-    return NextResponse.json({ itineraries: results });
+    console.log("[take-me] Found", results.itineraries.length, "itineraries");
+    return NextResponse.json({
+      itineraries: results.itineraries,
+      googleFlightsUrl: results.googleFlightsUrl,
+    });
   } catch (err) {
     console.error("[take-me] Search error:", err);
     return NextResponse.json({ error: "Search failed" }, { status: 500 });
